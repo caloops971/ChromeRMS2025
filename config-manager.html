@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>RMS Helper - Gestionnaire de Configuration</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(145deg, #f8f9fa, #ffffff);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+        }
+        
+        .header h1 {
+            font-size: 28px;
+            font-weight: bold;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 8px;
+        }
+        
+        .header p {
+            color: #6b7280;
+            font-size: 16px;
+        }
+        
+        .tabs {
+            display: flex;
+            background: white;
+            border-radius: 12px;
+            padding: 4px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .tab {
+            flex: 1;
+            padding: 12px 20px;
+            text-align: center;
+            border: none;
+            background: transparent;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+            color: #6b7280;
+        }
+        
+        .tab.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+        }
+        
+        .tab:hover:not(.active) {
+            background: #f3f4f6;
+        }
+        
+        .content {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+            min-height: 500px;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .section-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .data-grid {
+            overflow-x: auto;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+        
+        th {
+            background: #f9fafb;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            color: #374151;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #f3f4f6;
+        }
+        
+        tr:hover {
+            background: #f9fafb;
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-right: 4px;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+        }
+        
+        .btn-secondary {
+            background: #f3f4f6;
+            color: #374151;
+        }
+        
+        .btn-secondary:hover {
+            background: #e5e7eb;
+        }
+        
+        .btn-success {
+            background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+            color: white;
+        }
+        
+        .btn-danger {
+            background: linear-gradient(135deg, #f56565 0%, #e53e3e 100%);
+            color: white;
+        }
+        
+        .actions-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding: 16px;
+            background: #f9fafb;
+            border-radius: 8px;
+        }
+        
+        .search-box {
+            padding: 8px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 14px;
+            width: 250px;
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+        }
+        
+        .modal-content {
+            background: white;
+            margin: 5% auto;
+            padding: 24px;
+            border-radius: 16px;
+            width: 90%;
+            max-width: 600px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        
+        .modal-header h2 {
+            font-size: 20px;
+            color: #374151;
+        }
+        
+        .close {
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            color: #9ca3af;
+        }
+        
+        .close:hover {
+            color: #374151;
+        }
+        
+        .form-group {
+            margin-bottom: 16px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 4px;
+            font-weight: 500;
+            color: #374151;
+        }
+        
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        
+        .form-group textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .status-loaded {
+            background: #10b981;
+        }
+        
+        .status-missing {
+            background: #f59e0b;
+        }
+        
+        .status-error {
+            background: #ef4444;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+        
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+        }
+        
+        .stat-number {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+        
+        .stat-label {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        
+        /* Styles pour la grille de tarifs */
+        .rates-grid-container {
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .rates-grid-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+            min-width: 800px;
+        }
+        
+        .rates-grid-table th {
+            background: #f8fafc;
+            padding: 12px 8px;
+            text-align: center;
+            font-weight: 600;
+            border: 1px solid #e2e8f0;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        
+        .rates-grid-table th.sticky-header {
+            background: #1e293b;
+            color: white;
+            position: sticky;
+            left: 0;
+            z-index: 11;
+        }
+        
+        .rates-grid-table td {
+            padding: 8px;
+            text-align: center;
+            border: 1px solid #e2e8f0;
+            position: relative;
+        }
+        
+        .rates-grid-table td.season-header {
+            background: #f1f5f9;
+            font-weight: 600;
+            text-align: left;
+            padding-left: 16px;
+            position: sticky;
+            left: 0;
+            z-index: 5;
+            border-right: 2px solid #cbd5e1;
+        }
+        
+        .rates-grid-table td.vehicle-header-row {
+            background: #f1f5f9;
+            font-weight: 600;
+            text-align: left;
+            padding: 12px 16px;
+            position: sticky;
+            left: 0;
+            z-index: 5;
+            border-right: 2px solid #cbd5e1;
+            min-width: 250px;
+        }
+        
+        .rates-grid-table td.rate-cell {
+            background: white;
+            transition: all 0.2s;
+        }
+        
+        .rates-grid-table td.rate-cell:hover {
+            background: #f8fafc;
+            cursor: pointer;
+        }
+        
+        .rates-grid-table td.rate-cell.modified {
+            background: #fef3c7 !important;
+            border-color: #f59e0b;
+        }
+        
+        .rates-grid-table td.rate-cell.empty {
+            background: #f9fafb;
+            color: #9ca3af;
+            font-style: italic;
+        }
+        
+        .rate-input {
+            width: 80px;
+            padding: 4px 6px;
+            border: 1px solid #d1d5db;
+            border-radius: 4px;
+            text-align: center;
+            font-size: 13px;
+            background: transparent;
+        }
+        
+        .rate-input:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+        }
+        
+        .vehicle-header {
+            writing-mode: vertical-lr;
+            text-orientation: mixed;
+            min-width: 100px;
+            max-width: 120px;
+            word-wrap: break-word;
+            font-size: 12px;
+            line-height: 1.3;
+        }
+        
+        .grid-stats {
+            background: #f8fafc;
+            padding: 12px 16px;
+            border-radius: 8px;
+            color: #475569;
+        }
+        
+        /* Styles pour le panneau de suggestions */
+        .suggestions-panel {
+            background: #fef3c7;
+            border: 2px solid #f59e0b;
+            border-radius: 12px;
+            margin-bottom: 16px;
+            box-shadow: 0 4px 16px rgba(245, 158, 11, 0.2);
+        }
+        
+        .suggestions-header {
+            background: #f59e0b;
+            color: white;
+            padding: 12px 16px;
+            border-radius: 10px 10px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .suggestions-header h4 {
+            margin: 0;
+            font-size: 16px;
+            font-weight: 600;
+        }
+        
+        .btn-small {
+            padding: 4px 8px;
+            font-size: 12px;
+            min-width: auto;
+        }
+        
+        .suggestions-content {
+            padding: 16px;
+        }
+        
+        .suggestion-info {
+            margin-bottom: 12px;
+            font-size: 14px;
+            color: #92400e;
+        }
+        
+        .suggestions-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        
+        .suggestion-item {
+            background: white;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid #fbbf24;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .suggestion-item.selected {
+            background: #ecfdf5;
+            border-color: #10b981;
+        }
+        
+        .suggestion-season {
+            font-weight: 600;
+            color: #374151;
+        }
+        
+        .suggestion-rate {
+            font-size: 18px;
+            font-weight: bold;
+            color: #f59e0b;
+        }
+        
+        .suggestion-checkbox {
+            margin-left: 8px;
+        }
+        
+        .suggestions-actions {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 Gestionnaire de Configuration</h1>
+            <p>Visualisez et modifiez les données de configuration de RMS Helper</p>
+        </div>
+        
+        <div class="tabs">
+            <button class="tab active" data-tab="overview">📊 Vue d'ensemble</button>
+            <button class="tab" data-tab="rates">💰 Tarifs</button>
+            <button class="tab" data-tab="rates-grid">🔢 Grille Tarifs</button>
+            <button class="tab" data-tab="coefficients">🧮 Coefficients</button>
+            <button class="tab" data-tab="vehicles">🚗 Véhicules</button>
+            <button class="tab" data-tab="seasons">📅 Saisons</button>
+            <button class="tab" data-tab="settings">⚙️ Configuration</button>
+        </div>
+        
+        <div class="content">
+            <!-- Vue d'ensemble -->
+            <div class="tab-content active" id="overview">
+                <div class="section-title">📈 Statistiques</div>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-number" id="vehicles-count">-</div>
+                        <div class="stat-label">Véhicules</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number" id="seasons-count">-</div>
+                        <div class="stat-label">Saisons</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number" id="rates-count">-</div>
+                        <div class="stat-label">Tarifs configurés</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number" id="brands-count">-</div>
+                        <div class="stat-label">Marques</div>
+                    </div>
+                </div>
+                
+                <div class="actions-bar">
+                    <div>
+                        <h3 style="margin: 0; color: #374151;">🔍 État des données</h3>
+                    </div>
+                    <div>
+                        <button class="btn btn-primary" id="load-default-data-btn">
+                            📥 Charger Données par Défaut
+                        </button>
+                        <button class="btn btn-secondary" id="refresh-all-btn">
+                            🔄 Tout Actualiser
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="data-grid">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Type de données</th>
+                                <th>État</th>
+                                <th>Dernière modification</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="data-status-table">
+                            <!-- Sera rempli par JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- Tarifs -->
+            <div class="tab-content" id="rates">
+                <div class="actions-bar">
+                    <div>
+                        <input type="text" class="search-box" id="rates-search" placeholder="Rechercher un tarif...">
+                        <select id="season-filter" class="search-box" style="width: 200px; margin-left: 8px;">
+                            <option value="">Toutes les saisons</option>
+                        </select>
+                    </div>
+                    <div>
+                        <button class="btn btn-primary" id="add-rate-btn">➕ Ajouter Tarif</button>
+                        <button class="btn btn-success" id="export-rates-btn">📤 Exporter</button>
+                    </div>
+                </div>
+                
+                <div class="section-title">💰 Tableau des tarifs</div>
+                <div class="data-grid">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Saison</th>
+                                <th>Rate Code</th>
+                                <th>Véhicule (SIPP)</th>
+                                <th>Tarif</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="rates-table">
+                            <!-- Sera rempli par JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- Grille Tarifs -->
+            <div class="tab-content" id="rates-grid">
+                <div class="actions-bar">
+                    <div>
+                        <label for="grid-rate-code-select" style="margin-right: 8px; font-weight: 500;">Rate Code :</label>
+                        <select id="grid-rate-code-select" class="search-box" style="width: 150px;">
+                            <!-- Options chargées dynamiquement depuis la configuration -->
+                        </select>
+                        <span style="margin-left: 8px; font-size: 12px; color: #64748b;">📋 Depuis config</span>
+                    </div>
+                    <div>
+                        <button class="btn btn-success" id="save-grid-btn">💾 Sauvegarder Grille</button>
+                        <button class="btn btn-secondary" id="reset-grid-btn">🔄 Réinitialiser</button>
+                        <button class="btn btn-primary" id="export-grid-btn">📤 Exporter CSV</button>
+                    </div>
+                </div>
+                
+                <div class="section-title">🔢 Grille de modification des tarifs</div>
+                <div class="grid-info" style="margin-bottom: 16px; padding: 12px; background: #f0f9ff; border-radius: 8px; font-size: 14px;">
+                    <strong>💡 Instructions :</strong> 
+                    Modifiez les tarifs directement dans le tableau. Les cellules modifiées seront surlignées en jaune. 
+                    Cliquez sur "💾 Sauvegarder Grille" pour appliquer les changements.
+                    <br><strong>🧮 Calcul automatique :</strong> 
+                    Saisissez un tarif "Basse Saison" pour voir les suggestions calculées pour les autres saisons.
+                </div>
+                
+                <!-- Panneau de suggestions (remplacé par modale flottante) -->
+                <div id="suggestions-panel" class="suggestions-panel" style="display: none !important;">
+                    <div class="suggestions-header">
+                        <h4>🧮 Suggestions de tarifs calculés</h4>
+                        <button class="btn btn-secondary btn-small" id="close-suggestions">✖️</button>
+                    </div>
+                    <div class="suggestions-content">
+                        <div class="suggestion-info">
+                            <strong>Basé sur :</strong> <span id="suggestion-base"></span>
+                        </div>
+                        <div class="suggestions-list" id="suggestions-list">
+                            <!-- Suggestions générées dynamiquement -->
+                        </div>
+                        <div class="suggestions-actions">
+                            <button class="btn btn-success" id="apply-all-suggestions">✅ Appliquer tout</button>
+                            <button class="btn btn-secondary" id="apply-selected-suggestions">📝 Appliquer sélection</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="rates-grid-container">
+                    <div class="rates-grid-wrapper" style="overflow-x: auto; border: 1px solid #e5e7eb; border-radius: 8px;">
+                        <table id="rates-grid-table" class="rates-grid-table">
+                            <thead>
+                                <tr>
+                                    <th class="sticky-header" style="min-width: 200px;">Saison</th>
+                                    <!-- Les en-têtes de véhicules seront ajoutés dynamiquement -->
+                                </tr>
+                            </thead>
+                            <tbody id="rates-grid-tbody">
+                                <!-- Le contenu sera généré dynamiquement -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <div class="grid-stats" style="margin-top: 16px; display: flex; gap: 16px; font-size: 14px;">
+                    <div>📊 <span id="grid-total-cells">0</span> cellules</div>
+                    <div>✏️ <span id="grid-modified-cells">0</span> modifiées</div>
+                    <div>💰 <span id="grid-total-value">0</span>€ total</div>
+                </div>
+            </div>
+            
+            <!-- Coefficients -->
+            <div class="tab-content" id="coefficients">
+                <div class="actions-bar">
+                    <div>
+                        <h3 style="margin: 0; color: #374151;">🧮 Gestion des coefficients saisonniers</h3>
+                    </div>
+                    <div>
+                        <button class="btn btn-primary" id="add-coefficient-btn">➕ Ajouter Saison</button>
+                        <button class="btn btn-secondary" id="reset-coefficients-btn">🔄 Réinitialiser</button>
+                        <button class="btn btn-success" id="export-coefficients-btn">📤 Exporter</button>
+                        <button class="btn btn-success" id="save-coefficients-btn">💾 Sauvegarder</button>
+                    </div>
+                </div>
+                
+                <div class="coefficients-info" style="margin-bottom: 20px; padding: 16px; background: #f0f9ff; border-radius: 8px;">
+                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                        <strong>📊 Saison de base :</strong>
+                        <select id="base-season-select" style="padding: 4px 8px; border: 1px solid #d1d5db; border-radius: 4px;">
+                            <!-- Options chargées dynamiquement -->
+                        </select>
+                    </div>
+                    <div style="font-size: 14px; color: #6b7280;">
+                        💡 Les coefficients permettent de calculer automatiquement les tarifs des autres saisons basé sur la saison de base.
+                    </div>
+                </div>
+                
+                <div class="section-title">🔢 Coefficients par saison</div>
+                <div class="coefficients-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; margin-bottom: 20px;">
+                    <!-- Cartes de coefficients générées dynamiquement -->
+                </div>
+                
+                <div class="section-title">🧪 Simulateur de calculs</div>
+                <div class="calculator-section" style="background: #f8fafc; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0;">
+                    <div style="display: flex; gap: 16px; align-items: center; margin-bottom: 16px;">
+                        <div>
+                            <label style="display: block; margin-bottom: 4px; font-weight: 500;">Tarif de base (€) :</label>
+                            <input type="number" id="calc-base-rate" placeholder="Ex: 30" style="padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; width: 120px;" min="0" step="0.01">
+                        </div>
+                        <button class="btn btn-primary" id="calculate-preview-btn">🧮 Calculer</button>
+                    </div>
+                    <div id="calculation-results" class="calculation-results" style="display: none;">
+                        <!-- Résultats du calcul -->
+                    </div>
+                </div>
+                
+                <div class="section-title">📋 Règles de calcul</div>
+                <div class="rules-section" style="background: white; padding: 16px; border-radius: 8px; border: 1px solid #e5e7eb;">
+                    <div class="rules-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;">
+                        <div>
+                            <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                                <input type="checkbox" id="round-to-integer" checked>
+                                <span style="font-weight: 500;">Arrondir à l'entier</span>
+                            </label>
+                        </div>
+                        <div>
+                            <label style="display: block; margin-bottom: 4px; font-weight: 500;">Méthode d'arrondi :</label>
+                            <select id="round-method" style="padding: 4px 8px; border: 1px solid #d1d5db; border-radius: 4px; width: 100%;">
+                                <option value="round">Arrondi normal</option>
+                                <option value="floor">Arrondi inférieur</option>
+                                <option value="ceil">Arrondi supérieur</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="display: block; margin-bottom: 4px; font-weight: 500;">Valeur minimum (€) :</label>
+                            <input type="number" id="min-value" value="1" min="0" step="1" style="padding: 4px 8px; border: 1px solid #d1d5db; border-radius: 4px; width: 100%;">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Véhicules -->
+            <div class="tab-content" id="vehicles">
+                <div class="actions-bar">
+                    <input type="text" class="search-box" id="vehicles-search" placeholder="Rechercher un véhicule...">
+                    <div>
+                        <button class="btn btn-primary" id="add-vehicle-btn">➕ Ajouter Véhicule</button>
+                        <button class="btn btn-success" id="export-vehicles-btn">📤 Exporter</button>
+                    </div>
+                </div>
+                
+                <div class="section-title">🚗 Liste des véhicules</div>
+                <div class="data-grid">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>SIPP</th>
+                                <th>Marque/Modèle</th>
+                                <th>Catégorie</th>
+                                <th>Adultes</th>
+                                <th>Portes</th>
+                                <th>Bagages</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="vehicles-table">
+                            <!-- Sera rempli par JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- Saisons -->
+            <div class="tab-content" id="seasons">
+                <div class="actions-bar">
+                    <input type="text" class="search-box" id="seasons-search" placeholder="Rechercher une saison...">
+                    <div>
+                        <button class="btn btn-primary" id="add-season-btn">➕ Ajouter Saison</button>
+                        <button class="btn btn-success" id="export-seasons-btn">📤 Exporter</button>
+                    </div>
+                </div>
+                
+                <div class="section-title">📅 Saisons et périodes</div>
+                <div class="data-grid">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Saison</th>
+                                <th>Nombre de périodes</th>
+                                <th>Première période</th>
+                                <th>Dernière période</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="seasons-table">
+                            <!-- Sera rempli par JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- Configuration -->
+            <div class="tab-content" id="settings">
+                <div class="section-title">⚙️ Configuration générale</div>
+                <div class="data-grid">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Marque</th>
+                                <th>Pickup Location</th>
+                                <th>Rate Codes</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="config-table">
+                            <!-- Sera rempli par JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modal pour édition -->
+    <div id="editModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modal-title">Éditer</h2>
+                <span class="close">&times;</span>
+            </div>
+            <div id="modal-body">
+                <!-- Contenu dynamique -->
+            </div>
+            <div style="text-align: right; margin-top: 20px;">
+                <button class="btn btn-secondary" id="cancel-btn">Annuler</button>
+                <button class="btn btn-primary" id="save-btn">💾 Sauvegarder</button>
+            </div>
+        </div>
+    </div>
+    
+    <script src="config-manager.js"></script>
+    <script src="test-config-access.js"></script>
+</body>
+</html>

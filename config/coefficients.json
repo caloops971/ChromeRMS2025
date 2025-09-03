@@ -1,0 +1,33 @@
+{
+  "description": "Coefficients multiplicateurs pour calculer les tarifs des autres saisons basé sur la Basse Saison",
+  "base_season": "Basse Saison",
+  "coefficients": {
+    "Basse Saison": 1.00,
+    "Moyenne Saison": 1.17,
+    "Haute Saison": 1.33,
+    "Très Haute Saison": 1.67,
+    "Festive": 2.33
+  },
+  "calculation_rules": {
+    "round_to_integer": true,
+    "round_method": "round",
+    "min_value": 1,
+    "notes": "Les tarifs sont calculés en multipliant le tarif Basse Saison par le coefficient, puis arrondis à l'entier le plus proche"
+  },
+  "examples": {
+    "base_rate_30": {
+      "Basse Saison": 30,
+      "Moyenne Saison": 35,
+      "Haute Saison": 40,
+      "Très Haute Saison": 50,
+      "Festive": 70
+    },
+    "base_rate_55": {
+      "Basse Saison": 55,
+      "Moyenne Saison": 64,
+      "Haute Saison": 73,
+      "Très Haute Saison": 92,
+      "Festive": 128
+    }
+  }
+}

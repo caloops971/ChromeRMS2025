@@ -1,0 +1,38 @@
+# Fichiers temporaires et de debug
+*.log
+*.tmp
+debug-*.js
+test-*.js
+emergency-fix.js
+recover-extension.js
+quick-*.js
+force-*.js
+inline-*.js
+manual-*.js
+
+# Fichiers de configuration locale (optionnel - gardez si vous voulez les partager)
+# config/*.json
+
+# Fichiers de documentation temporaire
+*-guide.md
+*-test.md
+*-fix.md
+data-sync-fix.md
+season-selection-test.md
+csp-fix-test.md
+
+# Versions alternatives/minimales
+content-minimal.js
+content-simple.js
+manifest-minimal.json
+manifest-simple.json
+
+# Node modules si jamais utilisés
+node_modules/
+
+# Logs de Chrome
+*.log
+
+# Fichiers système
+.DS_Store
+Thumbs.db

@@ -1,0 +1,43 @@
+{
+  "calculation_rules": {
+    "weekly_equals_sum_of_7_daily": true,
+    "notes": "Weekly (W) tariffs are computed as the sum of 7 daily (D) rates."
+  },
+  "pickup_locations": [
+    {
+      "brand": "HERTZ",
+      "pickup_location_level_name": "SBHZE",
+      "car_type_group": "SBHZE",
+      "rates": [
+        { "rate_code": "AFFA1", "type": "Fixed", "plan_code": "D" },
+        { "rate_code": "AFFA7", "type": "Fixed", "plan_code": "D" },
+        { "rate_code": "AFFA14", "type": "Fixed", "plan_code": "D" }
+      ]
+    },
+    {
+      "brand": "DOLLAR",
+      "pickup_location_level_name": "SBHZR",
+      "rates": [
+        { "rate_code": "SBHDL", "type": "Daily", "plan_code": "D" },
+        { "rate_code": "SBHWK", "type": "Weekly", "plan_code": "W" }
+      ]
+    },
+    {
+      "brand": "THRIFTY",
+      "pickup_location_level_name": "SBHZT",
+      "rates": [
+        { "rate_code": "SBHDL", "type": "Daily", "plan_code": "D" },
+        { "rate_code": "SBHWK", "type": "Weekly", "plan_code": "W" }
+      ]
+    }
+  ],
+  "flat_mapping": [
+    { "brand": "HERTZ", "pickup_location_level_name": "SBHZE", "rate_code": "AFFA1", "type": "Fixed", "plan_code": "D" },
+    { "brand": "HERTZ", "pickup_location_level_name": "SBHZE", "rate_code": "AFFA7", "type": "Fixed", "plan_code": "D" },
+    { "brand": "HERTZ", "pickup_location_level_name": "SBHZE", "rate_code": "AFFA14", "type": "Fixed", "plan_code": "D" },
+    { "brand": "DOLLAR", "pickup_location_level_name": "SBHZR", "rate_code": "SBHDL", "type": "Daily", "plan_code": "D" },
+    { "brand": "DOLLAR", "pickup_location_level_name": "SBHZR", "rate_code": "SBHWK", "type": "Weekly", "plan_code": "W" },
+    { "brand": "THRIFTY", "pickup_location_level_name": "SBHZT", "rate_code": "SBHDL", "type": "Daily", "plan_code": "D" },
+    { "brand": "THRIFTY", "pickup_location_level_name": "SBHZT", "rate_code": "SBHWK", "type": "Weekly", "plan_code": "W" }
+  ]
+}
