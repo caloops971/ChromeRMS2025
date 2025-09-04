@@ -1268,6 +1268,20 @@ class RMSHelper {
         
         if (modifiedCount > 0) {
             this.showNotification(`✅ ${modifiedCount} tarifs modifiés pour la saison "${selectedSeason}"!`, 'success');
+            
+            // Validation finale : clic sur le header pour s'assurer que toutes les cellules sont validées
+            setTimeout(() => {
+                try {
+                    const gridHeader = document.querySelector('#uwgDisplayGrid_hdiv');
+                    if (gridHeader) {
+                        gridHeader.click();
+                        console.log('🔄 Validation finale déclenchée');
+                    }
+                } catch (error) {
+                    console.warn('Erreur lors de la validation finale:', error);
+                }
+            }, 200);
+            
         } else {
             this.showNotification('❌ Aucun tarif trouvé pour cette configuration', 'error');
         }
@@ -1437,8 +1451,10 @@ class RMSHelper {
                                 if (textElement) {
                                     if (textElement.tagName === 'INPUT') {
                                         textElement.value = priceWithZeros;
-                                        textElement.dispatchEvent(new Event('input', { bubbles: true }));
-                                        textElement.dispatchEvent(new Event('change', { bubbles: true }));
+                                        
+                                        // Utiliser la fonction de validation Infragistics
+                                        this.validateInfragisticsCell(textElement);
+                                        
                                     } else {
                                         textElement.textContent = priceWithZeros;
                                     }
@@ -2066,6 +2082,68 @@ class RMSHelper {
         setTimeout(() => {
             notification.remove();
         }, 3000);
+    }
+
+    // Fonction pour valider une cellule Infragistics après modification
+    validateInfragisticsCell(inputElement) {
+        try {
+            // Focus sur l'élément pour s'assurer qu'il est actif
+            inputElement.focus();
+            
+            // Événements standards
+            inputElement.dispatchEvent(new Event('input', { bubbles: true }));
+            inputElement.dispatchEvent(new Event('change', { bubbles: true }));
+            
+            // Événements Infragistics spécifiques
+            inputElement.dispatchEvent(new Event('blur', { bubbles: true }));
+            inputElement.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
+            
+            // Événements clavier pour valider
+            inputElement.dispatchEvent(new KeyboardEvent('keydown', { 
+                key: 'Enter', 
+                keyCode: 13, 
+                which: 13,
+                bubbles: true 
+            }));
+            inputElement.dispatchEvent(new KeyboardEvent('keyup', { 
+                key: 'Enter', 
+                keyCode: 13, 
+                which: 13,
+                bubbles: true 
+            }));
+            
+            // Événement Tab pour passer à la cellule suivante
+            inputElement.dispatchEvent(new KeyboardEvent('keydown', { 
+                key: 'Tab', 
+                keyCode: 9, 
+                which: 9,
+                bubbles: true 
+            }));
+            
+            // Simuler un clic en dehors pour forcer la sortie du mode édition
+            setTimeout(() => {
+                try {
+                    // Cliquer sur le header de la grille
+                    const gridHeader = document.querySelector('#uwgDisplayGrid_hdiv');
+                    if (gridHeader) {
+                        gridHeader.click();
+                    } else {
+                        // Fallback : cliquer sur le container principal
+                        const gridContainer = document.querySelector('#uwgDisplayGrid_main');
+                        if (gridContainer) {
+                            gridContainer.click();
+                        }
+                    }
+                } catch (clickError) {
+                    console.warn('Erreur lors du clic de validation:', clickError);
+                }
+            }, 100);
+            
+            console.log('✅ Validation Infragistics déclenchée pour la cellule');
+            
+        } catch (error) {
+            console.error('❌ Erreur lors de la validation Infragistics:', error);
+        }
     }
 }
 
