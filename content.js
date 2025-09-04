@@ -1409,6 +1409,7 @@ class RMSHelper {
                     if (rates[carType]) {
                         vehiclesWithRates.push(carType);
                         console.log(`✅ Tarif trouvé pour ${carType}: ${rates[carType]}€`);
+                        console.log(`🔍 DEBUG: Saison="${seasonName}", RateCode="${rateCode}", Vehicle="${carType}", Prix="${rates[carType]}€`);
                         
                         // Plusieurs stratégies pour trouver la cellule Rate
                         let rateCell = row.querySelector('[id$="_5"]');
@@ -1452,8 +1453,23 @@ class RMSHelper {
                                     if (textElement.tagName === 'INPUT') {
                                         textElement.value = priceWithZeros;
                                         
-                                        // Utiliser la fonction de validation Infragistics
-                                        this.validateInfragisticsCell(textElement);
+                                        // Événements standards (restaurés temporairement)
+                                        textElement.dispatchEvent(new Event('input', { bubbles: true }));
+                                        textElement.dispatchEvent(new Event('change', { bubbles: true }));
+                                        textElement.dispatchEvent(new Event('blur', { bubbles: true }));
+                                        
+                                        // Validation Infragistics simplifiée
+                                        setTimeout(() => {
+                                            try {
+                                                textElement.dispatchEvent(new KeyboardEvent('keydown', { 
+                                                    key: 'Enter', 
+                                                    keyCode: 13, 
+                                                    bubbles: true 
+                                                }));
+                                            } catch (e) {
+                                                console.warn('Erreur validation:', e);
+                                            }
+                                        }, 10);
                                         
                                     } else {
                                         textElement.textContent = priceWithZeros;

@@ -62,20 +62,46 @@ class ConfigManager {
         document.getElementById('calculate-preview-btn').addEventListener('click', () => this.calculatePreview());
         
         // Recherche
-        document.getElementById('rates-search').addEventListener('input', (e) => {
-            this.filterRates(e.target.value);
-        });
-        document.getElementById('vehicles-search').addEventListener('input', (e) => {
-            this.filterVehicles(e.target.value);
-        });
-        document.getElementById('seasons-search').addEventListener('input', (e) => {
-            this.filterSeasons(e.target.value);
-        });
+        const ratesSearch = document.getElementById('rates-search');
+        if (ratesSearch) {
+            ratesSearch.addEventListener('input', (e) => {
+                console.log('🔍 Recherche tarifs:', e.target.value);
+                this.filterRates(e.target.value);
+            });
+        } else {
+            console.error('❌ Element rates-search non trouvé');
+        }
+        
+        const vehiclesSearch = document.getElementById('vehicles-search');
+        if (vehiclesSearch) {
+            vehiclesSearch.addEventListener('input', (e) => {
+                console.log('🔍 Recherche véhicules:', e.target.value);
+                this.filterVehicles(e.target.value);
+            });
+        } else {
+            console.error('❌ Element vehicles-search non trouvé');
+        }
+        
+        const seasonsSearch = document.getElementById('seasons-search');
+        if (seasonsSearch) {
+            seasonsSearch.addEventListener('input', (e) => {
+                console.log('🔍 Recherche saisons:', e.target.value);
+                this.filterSeasons(e.target.value);
+            });
+        } else {
+            console.error('❌ Element seasons-search non trouvé');
+        }
         
         // Filtre par saison
-        document.getElementById('season-filter').addEventListener('change', (e) => {
-            this.filterRatesBySeason(e.target.value);
-        });
+        const seasonFilter = document.getElementById('season-filter');
+        if (seasonFilter) {
+            seasonFilter.addEventListener('change', (e) => {
+                console.log('🔍 Filtre saison:', e.target.value);
+                this.filterRatesBySeason(e.target.value);
+            });
+        } else {
+            console.error('❌ Element season-filter non trouvé');
+        }
         
         // Modal
         document.querySelector('.close').addEventListener('click', () => this.closeModal());
