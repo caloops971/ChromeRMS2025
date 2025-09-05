@@ -270,6 +270,80 @@ class RMSHelper {
         }
     }
 
+    // Fonction pour vider tous les logs avec confirmation
+    clearAllLogs() {
+        try {
+            // Compter les logs actuels
+            const currentLogs = JSON.parse(localStorage.getItem('rms_debug_logs') || '[]');
+            const logCount = currentLogs.length;
+
+            if (logCount === 0) {
+                this.showNotification('ℹ️ Aucun log à supprimer', 'info');
+                return;
+            }
+
+            // Demander confirmation
+            const confirmed = confirm(
+                `🗑️ Vider tous les logs ?\n\n` +
+                `Cette action va supprimer définitivement :\n` +
+                `• ${logCount} entrées de logs\n` +
+                `• Toutes les données de debugging\n` +
+                `• L'historique des sessions\n\n` +
+                `Cette action est irréversible.\n\n` +
+                `Voulez-vous continuer ?`
+            );
+
+            if (!confirmed) {
+                this.log('❌ CLEAR_CANCELLED', 'Suppression des logs annulée par l\'utilisateur', {
+                    sessionId: this.sessionId,
+                    logCount: logCount
+                });
+                return;
+            }
+
+            // Sauvegarder les informations avant suppression
+            const beforeClear = {
+                sessionId: this.sessionId,
+                logCount: logCount,
+                timestamp: new Date().toISOString(),
+                lastLogTimestamp: currentLogs.length > 0 ? currentLogs[currentLogs.length - 1].timestamp : null
+            };
+
+            // Vider les logs du localStorage
+            localStorage.removeItem('rms_debug_logs');
+            
+            // Vider le buffer de logs en mémoire
+            this.logBuffer = [];
+
+            // Ajouter un log de confirmation de suppression (nouveau début)
+            this.log('🗑️ LOGS_CLEARED', 'Tous les logs ont été supprimés', {
+                previousSessionId: beforeClear.sessionId,
+                clearedLogCount: beforeClear.logCount,
+                clearedAt: beforeClear.timestamp,
+                newSessionId: this.sessionId
+            });
+
+            // Notification de succès
+            this.showNotification(`🗑️ ${logCount} logs supprimés avec succès!`, 'success');
+
+            // Log dans la console pour confirmation
+            console.log(`%c🗑️ LOGS VIDÉS`, 'color: #ef4444; font-weight: bold', {
+                logsSupprimés: logCount,
+                sessionPrécédente: beforeClear.sessionId,
+                nouvelleSession: this.sessionId
+            });
+
+        } catch (error) {
+            this.log('❌ CLEAR_ERROR', 'Erreur lors de la suppression des logs', {
+                error: error.message,
+                sessionId: this.sessionId
+            });
+            
+            this.showNotification('❌ Erreur lors de la suppression des logs', 'error');
+            console.error('Erreur lors du vidage des logs:', error);
+        }
+    }
+
     // Détecter les rechargements d'extension
     detectExtensionReload() {
         // Vérifier si c'est un rechargement
@@ -2445,6 +2519,9 @@ class RMSHelper {
                     <button id="force-validation" class="rms-btn rms-btn-warning" style="margin-left: 10px;">
                         🔄 Forcer Validation
                     </button>
+                    <button id="clear-logs" class="rms-btn" style="margin-left: 10px; background: linear-gradient(135deg, #ef4444, #dc2626); color: white;">
+                        🗑️ Vider Logs
+                    </button>
                 </div>
                 
                 <div style="margin-bottom: 20px;">
@@ -2482,6 +2559,9 @@ class RMSHelper {
             }
             if (e.target.id === 'force-validation') {
                 this.forceManualValidation();
+            }
+            if (e.target.id === 'clear-logs') {
+                this.clearAllLogs();
             }
         });
     }
