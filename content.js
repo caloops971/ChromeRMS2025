@@ -84,6 +84,192 @@ class RMSHelper {
         this.log('💾 EXPORT', 'Logs exportés', { count: logs.length });
     }
 
+    // Fonction pour forcer manuellement la validation de tous les champs
+    async forceManualValidation() {
+        this.log('🔄 MANUAL_VALIDATION', 'Début de la validation manuelle forcée', {
+            sessionId: this.sessionId
+        });
+
+        // Désactiver temporairement le bouton pour éviter les clics multiples
+        const button = document.getElementById('force-validation');
+        if (button) {
+            button.disabled = true;
+            button.textContent = '🔄 Validation en cours...';
+            button.style.opacity = '0.6';
+        }
+
+        try {
+            // Chercher toutes les cellules de tarifs dans la grille
+            const gridContainer = document.querySelector('#uwgDisplayGrid_main');
+            if (!gridContainer) {
+                this.showNotification('❌ Grille de tarifs non trouvée', 'error');
+                return;
+            }
+
+            // Trouver toutes les cellules qui contiennent des tarifs (avec attribut uv)
+            const rateCells = gridContainer.querySelectorAll('td[uv]');
+            let validatedCount = 0;
+
+            this.log('🔍 CELLS_FOUND', 'Cellules avec tarifs trouvées', {
+                count: rateCells.length,
+                sessionId: this.sessionId
+            });
+
+            // Parcourir chaque cellule et forcer la validation
+            for (let i = 0; i < rateCells.length; i++) {
+                const cell = rateCells[i];
+                const uvValue = cell.getAttribute('uv');
+                
+                if (uvValue && uvValue !== '0' && uvValue !== '') {
+                    try {
+                        this.log('🔄 VALIDATING', 'Validation forcée de la cellule', {
+                            cellId: cell.id || 'no-id',
+                            uvValue: uvValue,
+                            index: i + 1,
+                            total: rateCells.length,
+                            sessionId: this.sessionId
+                        });
+
+                        // Méthode 1: Événements Infragistics complets
+                        this.triggerInfragisticsValidation(cell, `cell-${i}`);
+
+                        // Méthode 2: Simulation d'interaction utilisateur
+                        await this.simulateUserInteraction(cell);
+
+                        // Méthode 3: Forcer un changement temporaire
+                        await this.forceTemporaryChange(cell, uvValue);
+
+                        validatedCount++;
+
+                        // Délai entre chaque validation pour éviter les conflits
+                        if (i < rateCells.length - 1) {
+                            await new Promise(resolve => setTimeout(resolve, 100));
+                        }
+
+                    } catch (error) {
+                        this.log('❌ VALIDATION_ERROR', 'Erreur lors de la validation', {
+                            cellId: cell.id || 'no-id',
+                            error: error.message,
+                            sessionId: this.sessionId
+                        });
+                    }
+                }
+            }
+
+            // Validation finale globale
+            await this.performFinalValidation();
+
+            this.log('✅ MANUAL_VALIDATION_COMPLETE', 'Validation manuelle terminée', {
+                validatedCount,
+                totalCells: rateCells.length,
+                sessionId: this.sessionId
+            });
+
+            this.showNotification(`✅ ${validatedCount} cellules validées manuellement!`, 'success');
+
+        } catch (error) {
+            this.log('❌ MANUAL_VALIDATION_ERROR', 'Erreur lors de la validation manuelle', {
+                error: error.message,
+                sessionId: this.sessionId
+            });
+            this.showNotification('❌ Erreur lors de la validation manuelle', 'error');
+        } finally {
+            // Réactiver le bouton
+            if (button) {
+                button.disabled = false;
+                button.textContent = '🔄 Forcer Validation';
+                button.style.opacity = '1';
+            }
+        }
+    }
+
+    // Simulation d'interaction utilisateur sur une cellule
+    async simulateUserInteraction(cell) {
+        // Focus sur la cellule
+        cell.focus();
+        
+        // Simulation de clic
+        cell.dispatchEvent(new MouseEvent('click', {
+            bubbles: true,
+            cancelable: true,
+            view: window
+        }));
+
+        // Délai court
+        await new Promise(resolve => setTimeout(resolve, 50));
+
+        // Simulation de sortie de focus
+        cell.blur();
+    }
+
+    // Forcer un changement temporaire pour déclencher la validation
+    async forceTemporaryChange(cell, originalValue) {
+        try {
+            // Sauvegarder les valeurs actuelles
+            const textElement = cell.querySelector('nobr') || cell.querySelector('span');
+            const originalText = textElement ? textElement.textContent : '';
+
+            // Changement temporaire vers une valeur différente
+            const tempValue = originalValue === '0' ? '1' : '0';
+            
+            // Étape 1: Changement temporaire
+            cell.setAttribute('uv', tempValue);
+            if (textElement) {
+                textElement.textContent = tempValue;
+            }
+            
+            // Déclencher événements pour le changement temporaire
+            this.triggerInfragisticsValidation(cell, 'temp');
+            
+            // Délai court
+            await new Promise(resolve => setTimeout(resolve, 50));
+            
+            // Étape 2: Restaurer la vraie valeur
+            cell.setAttribute('uv', originalValue);
+            if (textElement) {
+                textElement.textContent = originalText;
+            }
+            
+            // Déclencher événements pour la vraie valeur
+            this.triggerInfragisticsValidation(cell, 'final');
+            
+        } catch (error) {
+            console.warn('Erreur lors du changement temporaire:', error);
+        }
+    }
+
+    // Validation finale globale de la grille
+    async performFinalValidation() {
+        try {
+            // Clic sur le header pour déclencher la validation globale
+            const gridHeader = document.querySelector('#uwgDisplayGrid_hdiv');
+            if (gridHeader) {
+                gridHeader.click();
+            }
+
+            // Événements globaux sur la grille
+            const gridMain = document.querySelector('#uwgDisplayGrid_main');
+            if (gridMain) {
+                gridMain.dispatchEvent(new Event('gridupdate', { bubbles: true }));
+                gridMain.dispatchEvent(new Event('datachanged', { bubbles: true }));
+            }
+
+            // Événements sur le formulaire parent si il existe
+            const form = document.querySelector('form');
+            if (form) {
+                form.dispatchEvent(new Event('change', { bubbles: true }));
+                form.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+
+            this.log('🔄 FINAL_VALIDATION', 'Validation finale globale effectuée', {
+                sessionId: this.sessionId
+            });
+
+        } catch (error) {
+            console.warn('Erreur lors de la validation finale:', error);
+        }
+    }
+
     // Détecter les rechargements d'extension
     detectExtensionReload() {
         // Vérifier si c'est un rechargement
@@ -2256,6 +2442,9 @@ class RMSHelper {
                     <button id="export-logs" class="rms-btn rms-btn-info" style="margin-left: 10px;">
                         📊 Export Logs
                     </button>
+                    <button id="force-validation" class="rms-btn rms-btn-warning" style="margin-left: 10px;">
+                        🔄 Forcer Validation
+                    </button>
                 </div>
                 
                 <div style="margin-bottom: 20px;">
@@ -2290,6 +2479,9 @@ class RMSHelper {
             }
             if (e.target.id === 'export-logs') {
                 this.exportLogs();
+            }
+            if (e.target.id === 'force-validation') {
+                this.forceManualValidation();
             }
         });
     }
