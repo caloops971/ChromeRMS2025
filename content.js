@@ -1877,6 +1877,12 @@ class RMSHelper {
                                         count: currentAttemptCount,
                                         cellKey: cellKey.substring(0, 30)
                                     });
+                                } else {
+                                    this.log('❌ FAILED', 'Échec modification via clic réel', {
+                                        carType,
+                                        sessionId: this.sessionId
+                                    });
+                                }
                                 
                             } catch (cellError) {
                                 this.log('❌ CELL_ERROR', 'Erreur modification cellule', {
