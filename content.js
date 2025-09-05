@@ -1382,18 +1382,52 @@ class RMSHelper {
         if (modifiedCount > 0) {
             this.showNotification(`✅ ${modifiedCount} tarifs modifiés pour la saison "${selectedSeason}"!`, 'success');
             
-            // Validation finale : clic sur le header pour s'assurer que toutes les cellules sont validées
+            // Validation finale globale : forcer la sauvegarde de toutes les modifications
             setTimeout(() => {
                 try {
+                    this.log('🔄 FINAL_VALIDATION', 'Validation finale globale', {
+                        modifiedCount,
+                        sessionId: this.sessionId
+                    });
+
+                    // Déclencher les événements de sauvegarde globaux
+                    const grid = document.getElementById('uwgDisplayGrid');
+                    if (grid) {
+                        grid.dispatchEvent(new CustomEvent('gridupdate', { bubbles: true }));
+                        grid.dispatchEvent(new CustomEvent('datachanged', { bubbles: true }));
+                    }
+
+                    // Cliquer sur le header pour finaliser
                     const gridHeader = document.querySelector('#uwgDisplayGrid_hdiv');
                     if (gridHeader) {
                         gridHeader.click();
-                        console.log('🔄 Validation finale déclenchée');
+                        this.log('🔄 HEADER_FINAL', 'Clic header final pour sauvegarde', {
+                            sessionId: this.sessionId
+                        });
                     }
+
+                    // Déclencher un événement de postback si nécessaire
+                    setTimeout(() => {
+                        try {
+                            const form = document.querySelector('form');
+                            if (form) {
+                                form.dispatchEvent(new Event('change', { bubbles: true }));
+                            }
+                        } catch (e) {
+                            this.log('⚠️ FORM_ERROR', 'Erreur événement form', {
+                                error: e.message,
+                                sessionId: this.sessionId
+                            });
+                        }
+                    }, 100);
+
                 } catch (error) {
-                    console.warn('Erreur lors de la validation finale:', error);
+                    this.log('❌ FINAL_ERROR', 'Erreur validation finale', {
+                        error: error.message,
+                        sessionId: this.sessionId
+                    });
                 }
-            }, 200);
+            }, 300);
             
         } else {
             this.showNotification('❌ Aucun tarif trouvé pour cette configuration', 'error');
@@ -1565,28 +1599,56 @@ class RMSHelper {
                             console.log(`💰 Modification ${carType}: ${price}€ → ${priceWithZeros}`);
                             console.log(`🔍 Cellule rate trouvée:`, rateCell);
 
-                            // Nouvelle méthode : édition via double-clic Infragistics
+                            // Approche hybride : modification directe + validation
                             try {
-                                const success = await this.editInfragisticsCell(rateCell, priceWithZeros, carType);
+                                this.log('🎯 DIRECT', 'Modification directe de la cellule', {
+                                    carType,
+                                    price: rates[carType],
+                                    priceWithZeros,
+                                    cellId: rateCell.id || 'no-id',
+                                    sessionId: this.sessionId
+                                });
+
+                                // Étape 1: Mettre à jour l'attribut uv (valeur Infragistics)
+                                rateCell.setAttribute('uv', priceWithZeros);
                                 
-                                if (success) {
-                                    // Mise en évidence
-                                    this.highlightCell(rateCell, 'success');
-                                    currentAttemptCount++;
-                                    modifiedCount = Math.max(modifiedCount, currentAttemptCount);
-                                    vehiclesMatched.push(carType);
-                                    
-                                    this.log('✅ SUCCESS', 'Cellule modifiée avec succès', {
-                                        carType,
-                                        sessionId: this.sessionId,
-                                        count: currentAttemptCount
-                                    });
-                                } else {
-                                    this.log('❌ FAILED', 'Échec de modification de la cellule', {
-                                        carType,
-                                        sessionId: this.sessionId
-                                    });
+                                // Étape 2: Mettre à jour le contenu visuel
+                                let textElement = rateCell.querySelector('nobr');
+                                if (!textElement) {
+                                    textElement = rateCell.querySelector('span');
                                 }
+                                if (!textElement) {
+                                    // Créer un élément nobr si aucun n'existe
+                                    textElement = document.createElement('nobr');
+                                    rateCell.innerHTML = '';
+                                    rateCell.appendChild(textElement);
+                                }
+                                
+                                const oldValue = textElement.textContent;
+                                textElement.textContent = priceWithZeros;
+                                
+                                this.log('📝 DIRECT_SET', 'Valeur mise à jour directement', {
+                                    carType,
+                                    oldValue,
+                                    newValue: priceWithZeros,
+                                    price: rates[carType],
+                                    sessionId: this.sessionId
+                                });
+
+                                // Étape 3: Déclencher les événements de validation Infragistics
+                                this.triggerInfragisticsValidation(rateCell, carType);
+
+                                // Mise en évidence
+                                this.highlightCell(rateCell, 'success');
+                                currentAttemptCount++;
+                                modifiedCount = Math.max(modifiedCount, currentAttemptCount);
+                                vehiclesMatched.push(carType);
+                                
+                                this.log('✅ SUCCESS', 'Cellule modifiée avec succès', {
+                                    carType,
+                                    sessionId: this.sessionId,
+                                    count: currentAttemptCount
+                                });
                                 
                             } catch (cellError) {
                                 this.log('❌ CELL_ERROR', 'Erreur modification cellule', {
@@ -2222,122 +2284,80 @@ class RMSHelper {
         }, 3000);
     }
 
-    // Fonction pour éditer une cellule Infragistics (double-clic + modification + validation)
-    async editInfragisticsCell(rateCell, newValue, carType) {
-        return new Promise((resolve) => {
-            try {
-                this.log('🖱️ EDIT', 'Début édition cellule Infragistics', {
-                    carType,
-                    newValue,
-                    cellId: rateCell.id || 'no-id',
-                    sessionId: this.sessionId
-                });
+    // Fonction pour déclencher la validation Infragistics après modification directe
+    triggerInfragisticsValidation(rateCell, carType) {
+        try {
+            this.log('🔄 VALIDATION', 'Début validation Infragistics', {
+                carType,
+                cellId: rateCell.id || 'no-id',
+                sessionId: this.sessionId
+            });
 
-                // Étape 1: Simuler double-clic pour entrer en mode édition
-                const doubleClickEvent = new MouseEvent('dblclick', {
-                    bubbles: true,
-                    cancelable: true,
-                    view: window
-                });
-                
-                rateCell.dispatchEvent(doubleClickEvent);
-                
-                this.log('🖱️ DBLCLICK', 'Double-clic simulé', {
-                    carType,
-                    sessionId: this.sessionId
-                });
+            // Événements de modification sur la cellule
+            rateCell.dispatchEvent(new Event('input', { bubbles: true }));
+            rateCell.dispatchEvent(new Event('change', { bubbles: true }));
+            rateCell.dispatchEvent(new Event('blur', { bubbles: true }));
+            
+            // Événements Infragistics spécifiques
+            rateCell.dispatchEvent(new CustomEvent('cellvaluechanged', { 
+                bubbles: true,
+                detail: { newValue: rateCell.getAttribute('uv') }
+            }));
+            
+            // Événements sur la grille pour forcer la mise à jour
+            const grid = document.getElementById('uwgDisplayGrid');
+            if (grid) {
+                grid.dispatchEvent(new CustomEvent('cellchange', { bubbles: true }));
+                grid.dispatchEvent(new CustomEvent('aftercellupdate', { bubbles: true }));
+            }
 
-                // Étape 2: Attendre que l'INPUT soit créé et le modifier
-                setTimeout(() => {
-                    try {
-                        // Chercher l'INPUT créé par Infragistics
-                        let inputElement = rateCell.querySelector('input');
-                        
-                        if (!inputElement) {
-                            // Parfois l'input est dans un container parent
-                            inputElement = rateCell.parentElement?.querySelector('input');
-                        }
-                        
-                        if (!inputElement) {
-                            // Dernière tentative : chercher dans toute la ligne
-                            const row = rateCell.closest('tr');
-                            inputElement = row?.querySelector('input[type="text"], input:not([type])');
-                        }
+            // Événements clavier sur la cellule
+            rateCell.dispatchEvent(new KeyboardEvent('keydown', { 
+                key: 'Enter', 
+                keyCode: 13, 
+                which: 13,
+                bubbles: true 
+            }));
+            
+            rateCell.dispatchEvent(new KeyboardEvent('keyup', { 
+                key: 'Enter', 
+                keyCode: 13, 
+                which: 13,
+                bubbles: true 
+            }));
 
-                        if (inputElement) {
-                            this.log('✅ INPUT', 'INPUT trouvé après double-clic', {
-                                carType,
-                                inputId: inputElement.id || 'no-id',
-                                inputType: inputElement.type,
-                                currentValue: inputElement.value,
-                                sessionId: this.sessionId
-                            });
-
-                            // Étape 3: Modifier la valeur
-                            inputElement.focus();
-                            inputElement.select(); // Sélectionner tout le texte
-                            inputElement.value = newValue;
-                            
-                            this.log('📝 INPUT_SET', 'Valeur définie dans INPUT', {
-                                carType,
-                                newValue,
-                                sessionId: this.sessionId
-                            });
-
-                            // Étape 4: Déclencher les événements de validation
-                            inputElement.dispatchEvent(new Event('input', { bubbles: true }));
-                            inputElement.dispatchEvent(new Event('change', { bubbles: true }));
-                            
-                            // Étape 5: Valider avec Enter
-                            setTimeout(() => {
-                                inputElement.dispatchEvent(new KeyboardEvent('keydown', { 
-                                    key: 'Enter', 
-                                    keyCode: 13, 
-                                    which: 13,
-                                    bubbles: true 
-                                }));
-                                
-                                this.log('🔄 VALIDATE', 'Validation Enter envoyée', {
-                                    carType,
-                                    sessionId: this.sessionId
-                                });
-                                
-                                // Étape 6: Sortir du mode édition
-                                setTimeout(() => {
-                                    inputElement.blur();
-                                    resolve(true);
-                                }, 50);
-                                
-                            }, 50);
-                            
-                        } else {
-                            this.log('❌ NO_INPUT', 'Aucun INPUT créé après double-clic', {
-                                carType,
-                                cellHTML: rateCell.innerHTML,
-                                sessionId: this.sessionId
-                            });
-                            resolve(false);
-                        }
-                        
-                    } catch (inputError) {
-                        this.log('❌ INPUT_ERROR', 'Erreur lors de la modification INPUT', {
+            // Validation finale : clic sur header pour forcer la sauvegarde
+            setTimeout(() => {
+                try {
+                    const gridHeader = document.querySelector('#uwgDisplayGrid_hdiv');
+                    if (gridHeader) {
+                        gridHeader.click();
+                        this.log('🔄 HEADER_CLICK', 'Clic header pour validation finale', {
                             carType,
-                            error: inputError.message,
                             sessionId: this.sessionId
                         });
-                        resolve(false);
                     }
-                }, 100); // Attendre que l'INPUT soit créé
-                
-            } catch (error) {
-                this.log('❌ EDIT_ERROR', 'Erreur lors du double-clic', {
-                    carType,
-                    error: error.message,
-                    sessionId: this.sessionId
-                });
-                resolve(false);
-            }
-        });
+                } catch (e) {
+                    this.log('⚠️ HEADER_ERROR', 'Erreur clic header', {
+                        carType,
+                        error: e.message,
+                        sessionId: this.sessionId
+                    });
+                }
+            }, 50);
+            
+            this.log('✅ VALIDATION_OK', 'Événements de validation déclenchés', {
+                carType,
+                sessionId: this.sessionId
+            });
+            
+        } catch (error) {
+            this.log('❌ VALIDATION_ERROR', 'Erreur lors de la validation', {
+                carType,
+                error: error.message,
+                sessionId: this.sessionId
+            });
+        }
     }
 }
 
