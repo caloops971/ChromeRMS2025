@@ -10,6 +10,12 @@ class RMSHelper {
             rateConfig: null
         };
         this.ui = null;
+        this.sessionId = Date.now(); // Identifiant unique pour cette session
+        this.logBuffer = []; // Buffer pour stocker les logs
+        this.isReloading = false;
+        
+        this.log('🚀 DÉMARRAGE', 'Initialisation de RMSHelper', { sessionId: this.sessionId });
+        this.detectExtensionReload();
         this.init();
     }
 
@@ -20,14 +26,121 @@ class RMSHelper {
         this.loadDefaultData();
     }
 
+    // Système de logging complet avec timestamps et session tracking
+    log(type, message, data = {}) {
+        const timestamp = new Date().toISOString();
+        const sessionInfo = `[Session-${this.sessionId}]`;
+        const logEntry = {
+            timestamp,
+            sessionId: this.sessionId,
+            type,
+            message,
+            data,
+            url: window.location.href,
+            readyState: document.readyState
+        };
+        
+        this.logBuffer.push(logEntry);
+        
+        // Affichage console avec couleurs
+        const colors = {
+            '🚀': 'color: #10b981; font-weight: bold',
+            '📊': 'color: #3b82f6; font-weight: bold',
+            '⚠️': 'color: #f59e0b; font-weight: bold',
+            '❌': 'color: #ef4444; font-weight: bold',
+            '✅': 'color: #22c55e; font-weight: bold',
+            '🔍': 'color: #8b5cf6; font-weight: bold',
+            '💾': 'color: #06b6d4; font-weight: bold',
+            '🔄': 'color: #f97316; font-weight: bold'
+        };
+        
+        const color = colors[type.charAt(0)] || 'color: #6b7280';
+        console.log(`%c${sessionInfo} ${type} ${message}`, color, data);
+        
+        // Stocker dans localStorage pour persistance
+        try {
+            const existingLogs = JSON.parse(localStorage.getItem('rms_debug_logs') || '[]');
+            existingLogs.push(logEntry);
+            // Garder seulement les 1000 derniers logs
+            if (existingLogs.length > 1000) {
+                existingLogs.splice(0, existingLogs.length - 1000);
+            }
+            localStorage.setItem('rms_debug_logs', JSON.stringify(existingLogs));
+        } catch (e) {
+            console.warn('Erreur sauvegarde logs:', e);
+        }
+    }
+
+    // Fonction pour exporter tous les logs
+    exportLogs() {
+        const logs = JSON.parse(localStorage.getItem('rms_debug_logs') || '[]');
+        const blob = new Blob([JSON.stringify(logs, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `rms-debug-logs-${new Date().toISOString().slice(0, 19)}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        this.log('💾 EXPORT', 'Logs exportés', { count: logs.length });
+    }
+
+    // Détecter les rechargements d'extension
+    detectExtensionReload() {
+        // Vérifier si c'est un rechargement
+        const lastSessionId = sessionStorage.getItem('rms_last_session');
+        if (lastSessionId && lastSessionId !== this.sessionId.toString()) {
+            this.log('🔄 RELOAD', 'Rechargement d\'extension détecté', { 
+                lastSession: lastSessionId, 
+                currentSession: this.sessionId 
+            });
+            this.isReloading = true;
+        }
+        sessionStorage.setItem('rms_last_session', this.sessionId.toString());
+        
+        // Écouter les événements de rechargement
+        window.addEventListener('beforeunload', () => {
+            this.log('🔄 UNLOAD', 'Page en cours de déchargement', { 
+                sessionId: this.sessionId,
+                timestamp: Date.now()
+            });
+        });
+        
+        // Écouter les changements de visibilité
+        document.addEventListener('visibilitychange', () => {
+            this.log('🔄 VISIBILITY', 'Changement de visibilité', { 
+                hidden: document.hidden,
+                visibilityState: document.visibilityState
+            });
+        });
+    }
+
     // Chargement des données depuis le storage
     async loadStoredData() {
+        this.log('💾 LOAD', 'Début chargement des données depuis le storage');
         return new Promise((resolve) => {
             chrome.storage.local.get(['rms_vehicles', 'rms_seasons', 'rms_rates', 'rms_rate_config'], (result) => {
                 this.data.vehicles = result.rms_vehicles || this.getDefaultVehicles();
                 this.data.seasons = result.rms_seasons || this.getDefaultSeasons();
                 this.data.rates = result.rms_rates || this.getDefaultRates();
                 this.data.rateConfig = result.rms_rate_config || this.getDefaultRateConfig();
+                
+                this.log('💾 LOAD', 'Données chargées depuis le storage', {
+                    vehicles: this.data.vehicles ? Object.keys(this.data.vehicles).length : 0,
+                    seasons: this.data.seasons ? Object.keys(this.data.seasons).length : 0,
+                    rates: this.data.rates ? Object.keys(this.data.rates).length : 0,
+                    rateConfig: this.data.rateConfig ? Object.keys(this.data.rateConfig).length : 0,
+                    hasVehicles: !!this.data.vehicles,
+                    hasSeasons: !!this.data.seasons,
+                    hasRates: !!this.data.rates,
+                    hasRateConfig: !!this.data.rateConfig,
+                    fromStorage: {
+                        vehicles: !!result.rms_vehicles,
+                        seasons: !!result.rms_seasons,
+                        rates: !!result.rms_rates,
+                        rateConfig: !!result.rms_rate_config
+                    }
+                });
+                
                 resolve();
             });
         });
@@ -1334,9 +1447,25 @@ class RMSHelper {
 
     // Remplir TOUS les tarifs avec mise en évidence (version robuste)
     async fillAllRatesInGridRobust(seasonName, rateCode) {
+        this.log('🔍 INJECTION', 'Début injection des tarifs', {
+            seasonName,
+            rateCode,
+            sessionId: this.sessionId,
+            isReloading: this.isReloading,
+            dataState: {
+                hasRates: !!this.data.rates,
+                seasonsAvailable: this.data.rates ? Object.keys(this.data.rates) : []
+            }
+        });
+
         const seasonRates = this.data.rates[seasonName];
         if (!seasonRates || !seasonRates[rateCode]) {
-            console.log(`❌ Aucun tarif trouvé pour ${seasonName} - ${rateCode}`);
+            this.log('❌ ERROR', 'Aucun tarif trouvé pour la configuration', {
+                seasonName,
+                rateCode,
+                availableSeasons: this.data.rates ? Object.keys(this.data.rates) : [],
+                availableRateCodes: seasonRates ? Object.keys(seasonRates) : []
+            });
             return 0;
         }
 
@@ -1408,8 +1537,14 @@ class RMSHelper {
                     // Vérifier si on a un tarif pour ce car type
                     if (rates[carType]) {
                         vehiclesWithRates.push(carType);
-                        console.log(`✅ Tarif trouvé pour ${carType}: ${rates[carType]}€`);
-                        console.log(`🔍 DEBUG: Saison="${seasonName}", RateCode="${rateCode}", Vehicle="${carType}", Prix="${rates[carType]}€`);
+                        this.log('✅ MATCH', 'Tarif trouvé pour véhicule', {
+                            carType,
+                            price: rates[carType],
+                            seasonName,
+                            rateCode,
+                            sessionId: this.sessionId,
+                            attemptNumber: attempts
+                        });
                         
                         // Plusieurs stratégies pour trouver la cellule Rate
                         let rateCell = row.querySelector('[id$="_5"]');
@@ -1450,8 +1585,20 @@ class RMSHelper {
                                 }
                                 
                                 if (textElement) {
+                                    const oldValue = textElement.tagName === 'INPUT' ? textElement.value : textElement.textContent;
+                                    
                                     if (textElement.tagName === 'INPUT') {
                                         textElement.value = priceWithZeros;
+                                        
+                                        this.log('📝 INJECT', 'Valeur injectée dans INPUT', {
+                                            carType,
+                                            oldValue,
+                                            newValue: priceWithZeros,
+                                            price: rates[carType],
+                                            sessionId: this.sessionId,
+                                            cellId: rateCell.id || 'no-id',
+                                            elementType: textElement.tagName
+                                        });
                                         
                                         // Événements standards (restaurés temporairement)
                                         textElement.dispatchEvent(new Event('input', { bubbles: true }));
@@ -1466,15 +1613,30 @@ class RMSHelper {
                                                     keyCode: 13, 
                                                     bubbles: true 
                                                 }));
+                                                this.log('🔄 VALIDATE', 'Événement Enter envoyé', {
+                                                    carType,
+                                                    sessionId: this.sessionId
+                                                });
                                             } catch (e) {
-                                                console.warn('Erreur validation:', e);
+                                                this.log('❌ ERROR', 'Erreur validation Enter', {
+                                                    carType,
+                                                    error: e.message,
+                                                    sessionId: this.sessionId
+                                                });
                                             }
                                         }, 10);
                                         
                                     } else {
                                         textElement.textContent = priceWithZeros;
+                                        this.log('📝 INJECT', 'Valeur injectée dans TEXT', {
+                                            carType,
+                                            oldValue,
+                                            newValue: priceWithZeros,
+                                            price: rates[carType],
+                                            sessionId: this.sessionId,
+                                            elementType: textElement.tagName
+                                        });
                                     }
-                                    console.log(`📝 Texte mis à jour dans ${textElement.tagName}: ${priceWithZeros}`);
                                 }
 
                                 // Mise en évidence
@@ -1999,6 +2161,9 @@ class RMSHelper {
                     <button id="export-config" class="rms-btn rms-btn-secondary">
                         Exporter config
                     </button>
+                    <button id="export-logs" class="rms-btn rms-btn-info" style="margin-left: 10px;">
+                        📊 Export Logs
+                    </button>
                 </div>
                 
                 <div style="margin-bottom: 20px;">
@@ -2030,6 +2195,9 @@ class RMSHelper {
             }
             if (e.target.id === 'export-config') {
                 this.exportConfiguration();
+            }
+            if (e.target.id === 'export-logs') {
+                this.exportLogs();
             }
         });
     }
