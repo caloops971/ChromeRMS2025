@@ -1515,7 +1515,8 @@ class RMSHelper {
             const vehiclesWithRates = [];
             const vehiclesMatched = [];
 
-            gridRows.forEach((row, index) => {
+            for (let index = 0; index < gridRows.length; index++) {
+                const row = gridRows[index];
                 try {
                     // Plusieurs stratégies pour trouver la cellule Car Type
                     let carTypeCell = row.querySelector('[id$="_2"]');
@@ -1564,91 +1565,35 @@ class RMSHelper {
                             console.log(`💰 Modification ${carType}: ${price}€ → ${priceWithZeros}`);
                             console.log(`🔍 Cellule rate trouvée:`, rateCell);
 
-                            // Méthode robuste pour mettre à jour la cellule
+                            // Nouvelle méthode : édition via double-clic Infragistics
                             try {
-                                // Mettre à jour l'attribut uv
-                                rateCell.setAttribute('uv', priceWithZeros);
+                                const success = await this.editInfragisticsCell(rateCell, priceWithZeros, carType);
                                 
-                                // Chercher l'élément nobr ou span pour le texte
-                                let textElement = rateCell.querySelector('nobr');
-                                if (!textElement) {
-                                    textElement = rateCell.querySelector('span');
-                                }
-                                if (!textElement) {
-                                    textElement = rateCell.querySelector('input');
-                                }
-                                if (!textElement) {
-                                    // Si pas d'élément enfant, créer un nobr
-                                    textElement = document.createElement('nobr');
-                                    rateCell.innerHTML = '';
-                                    rateCell.appendChild(textElement);
-                                }
-                                
-                                if (textElement) {
-                                    const oldValue = textElement.tagName === 'INPUT' ? textElement.value : textElement.textContent;
+                                if (success) {
+                                    // Mise en évidence
+                                    this.highlightCell(rateCell, 'success');
+                                    currentAttemptCount++;
+                                    modifiedCount = Math.max(modifiedCount, currentAttemptCount);
+                                    vehiclesMatched.push(carType);
                                     
-                                    if (textElement.tagName === 'INPUT') {
-                                        textElement.value = priceWithZeros;
-                                        
-                                        this.log('📝 INJECT', 'Valeur injectée dans INPUT', {
-                                            carType,
-                                            oldValue,
-                                            newValue: priceWithZeros,
-                                            price: rates[carType],
-                                            sessionId: this.sessionId,
-                                            cellId: rateCell.id || 'no-id',
-                                            elementType: textElement.tagName
-                                        });
-                                        
-                                        // Événements standards (restaurés temporairement)
-                                        textElement.dispatchEvent(new Event('input', { bubbles: true }));
-                                        textElement.dispatchEvent(new Event('change', { bubbles: true }));
-                                        textElement.dispatchEvent(new Event('blur', { bubbles: true }));
-                                        
-                                        // Validation Infragistics simplifiée
-                                        setTimeout(() => {
-                                            try {
-                                                textElement.dispatchEvent(new KeyboardEvent('keydown', { 
-                                                    key: 'Enter', 
-                                                    keyCode: 13, 
-                                                    bubbles: true 
-                                                }));
-                                                this.log('🔄 VALIDATE', 'Événement Enter envoyé', {
-                                                    carType,
-                                                    sessionId: this.sessionId
-                                                });
-                                            } catch (e) {
-                                                this.log('❌ ERROR', 'Erreur validation Enter', {
-                                                    carType,
-                                                    error: e.message,
-                                                    sessionId: this.sessionId
-                                                });
-                                            }
-                                        }, 10);
-                                        
-                                    } else {
-                                        textElement.textContent = priceWithZeros;
-                                        this.log('📝 INJECT', 'Valeur injectée dans TEXT', {
-                                            carType,
-                                            oldValue,
-                                            newValue: priceWithZeros,
-                                            price: rates[carType],
-                                            sessionId: this.sessionId,
-                                            elementType: textElement.tagName
-                                        });
-                                    }
+                                    this.log('✅ SUCCESS', 'Cellule modifiée avec succès', {
+                                        carType,
+                                        sessionId: this.sessionId,
+                                        count: currentAttemptCount
+                                    });
+                                } else {
+                                    this.log('❌ FAILED', 'Échec de modification de la cellule', {
+                                        carType,
+                                        sessionId: this.sessionId
+                                    });
                                 }
-
-                                // Mise en évidence
-                                this.highlightCell(rateCell, 'success');
-                                currentAttemptCount++;
-                                modifiedCount = Math.max(modifiedCount, currentAttemptCount);
-                                
-                                vehiclesMatched.push(carType);
-                                console.log(`✅ ${carType} modifié avec succès (${currentAttemptCount}/${Object.keys(rates).length})`);
                                 
                             } catch (cellError) {
-                                console.error(`❌ Erreur modification cellule ${carType}:`, cellError);
+                                this.log('❌ CELL_ERROR', 'Erreur modification cellule', {
+                                    carType,
+                                    error: cellError.message,
+                                    sessionId: this.sessionId
+                                });
                             }
                         } else {
                             console.log(`❌ Cellule rate non trouvée pour ${carType}`);
@@ -1657,9 +1602,18 @@ class RMSHelper {
                         console.log(`⚠️ Aucun tarif configuré pour ${carType}`);
                     }
                 } catch (error) {
-                    console.error(`❌ Erreur sur la ligne ${index}:`, error);
+                    this.log('❌ ROW_ERROR', 'Erreur sur la ligne', {
+                        index,
+                        error: error.message,
+                        sessionId: this.sessionId
+                    });
                 }
-            });
+                
+                // Délai entre chaque modification pour éviter les conflits
+                if (index < gridRows.length - 1) {
+                    await new Promise(resolve => setTimeout(resolve, 150));
+                }
+            }
 
             console.log(`✅ Tentative ${attempts}: ${currentAttemptCount} tarifs modifiés`);
             
@@ -2268,66 +2222,122 @@ class RMSHelper {
         }, 3000);
     }
 
-    // Fonction pour valider une cellule Infragistics après modification
-    validateInfragisticsCell(inputElement) {
-        try {
-            // Focus sur l'élément pour s'assurer qu'il est actif
-            inputElement.focus();
-            
-            // Événements standards
-            inputElement.dispatchEvent(new Event('input', { bubbles: true }));
-            inputElement.dispatchEvent(new Event('change', { bubbles: true }));
-            
-            // Événements Infragistics spécifiques
-            inputElement.dispatchEvent(new Event('blur', { bubbles: true }));
-            inputElement.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
-            
-            // Événements clavier pour valider
-            inputElement.dispatchEvent(new KeyboardEvent('keydown', { 
-                key: 'Enter', 
-                keyCode: 13, 
-                which: 13,
-                bubbles: true 
-            }));
-            inputElement.dispatchEvent(new KeyboardEvent('keyup', { 
-                key: 'Enter', 
-                keyCode: 13, 
-                which: 13,
-                bubbles: true 
-            }));
-            
-            // Événement Tab pour passer à la cellule suivante
-            inputElement.dispatchEvent(new KeyboardEvent('keydown', { 
-                key: 'Tab', 
-                keyCode: 9, 
-                which: 9,
-                bubbles: true 
-            }));
-            
-            // Simuler un clic en dehors pour forcer la sortie du mode édition
-            setTimeout(() => {
-                try {
-                    // Cliquer sur le header de la grille
-                    const gridHeader = document.querySelector('#uwgDisplayGrid_hdiv');
-                    if (gridHeader) {
-                        gridHeader.click();
-                    } else {
-                        // Fallback : cliquer sur le container principal
-                        const gridContainer = document.querySelector('#uwgDisplayGrid_main');
-                        if (gridContainer) {
-                            gridContainer.click();
+    // Fonction pour éditer une cellule Infragistics (double-clic + modification + validation)
+    async editInfragisticsCell(rateCell, newValue, carType) {
+        return new Promise((resolve) => {
+            try {
+                this.log('🖱️ EDIT', 'Début édition cellule Infragistics', {
+                    carType,
+                    newValue,
+                    cellId: rateCell.id || 'no-id',
+                    sessionId: this.sessionId
+                });
+
+                // Étape 1: Simuler double-clic pour entrer en mode édition
+                const doubleClickEvent = new MouseEvent('dblclick', {
+                    bubbles: true,
+                    cancelable: true,
+                    view: window
+                });
+                
+                rateCell.dispatchEvent(doubleClickEvent);
+                
+                this.log('🖱️ DBLCLICK', 'Double-clic simulé', {
+                    carType,
+                    sessionId: this.sessionId
+                });
+
+                // Étape 2: Attendre que l'INPUT soit créé et le modifier
+                setTimeout(() => {
+                    try {
+                        // Chercher l'INPUT créé par Infragistics
+                        let inputElement = rateCell.querySelector('input');
+                        
+                        if (!inputElement) {
+                            // Parfois l'input est dans un container parent
+                            inputElement = rateCell.parentElement?.querySelector('input');
                         }
+                        
+                        if (!inputElement) {
+                            // Dernière tentative : chercher dans toute la ligne
+                            const row = rateCell.closest('tr');
+                            inputElement = row?.querySelector('input[type="text"], input:not([type])');
+                        }
+
+                        if (inputElement) {
+                            this.log('✅ INPUT', 'INPUT trouvé après double-clic', {
+                                carType,
+                                inputId: inputElement.id || 'no-id',
+                                inputType: inputElement.type,
+                                currentValue: inputElement.value,
+                                sessionId: this.sessionId
+                            });
+
+                            // Étape 3: Modifier la valeur
+                            inputElement.focus();
+                            inputElement.select(); // Sélectionner tout le texte
+                            inputElement.value = newValue;
+                            
+                            this.log('📝 INPUT_SET', 'Valeur définie dans INPUT', {
+                                carType,
+                                newValue,
+                                sessionId: this.sessionId
+                            });
+
+                            // Étape 4: Déclencher les événements de validation
+                            inputElement.dispatchEvent(new Event('input', { bubbles: true }));
+                            inputElement.dispatchEvent(new Event('change', { bubbles: true }));
+                            
+                            // Étape 5: Valider avec Enter
+                            setTimeout(() => {
+                                inputElement.dispatchEvent(new KeyboardEvent('keydown', { 
+                                    key: 'Enter', 
+                                    keyCode: 13, 
+                                    which: 13,
+                                    bubbles: true 
+                                }));
+                                
+                                this.log('🔄 VALIDATE', 'Validation Enter envoyée', {
+                                    carType,
+                                    sessionId: this.sessionId
+                                });
+                                
+                                // Étape 6: Sortir du mode édition
+                                setTimeout(() => {
+                                    inputElement.blur();
+                                    resolve(true);
+                                }, 50);
+                                
+                            }, 50);
+                            
+                        } else {
+                            this.log('❌ NO_INPUT', 'Aucun INPUT créé après double-clic', {
+                                carType,
+                                cellHTML: rateCell.innerHTML,
+                                sessionId: this.sessionId
+                            });
+                            resolve(false);
+                        }
+                        
+                    } catch (inputError) {
+                        this.log('❌ INPUT_ERROR', 'Erreur lors de la modification INPUT', {
+                            carType,
+                            error: inputError.message,
+                            sessionId: this.sessionId
+                        });
+                        resolve(false);
                     }
-                } catch (clickError) {
-                    console.warn('Erreur lors du clic de validation:', clickError);
-                }
-            }, 100);
-            
-            console.log('✅ Validation Infragistics déclenchée pour la cellule');
-            
-        } catch (error) {
-            console.error('❌ Erreur lors de la validation Infragistics:', error);
-        }
+                }, 100); // Attendre que l'INPUT soit créé
+                
+            } catch (error) {
+                this.log('❌ EDIT_ERROR', 'Erreur lors du double-clic', {
+                    carType,
+                    error: error.message,
+                    sessionId: this.sessionId
+                });
+                resolve(false);
+            }
+        });
     }
 }
 
