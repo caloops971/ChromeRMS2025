@@ -1627,10 +1627,7 @@ class RMSHelper {
                                     sessionId: this.sessionId
                                 });
 
-                                // Étape 1: Mettre à jour l'attribut uv (valeur Infragistics)
-                                rateCell.setAttribute('uv', priceWithZeros);
-                                
-                                // Étape 2: Mettre à jour le contenu visuel
+                                // Étape 1: Forcer un changement pour déclencher la sauvegarde Infragistics
                                 let textElement = rateCell.querySelector('nobr');
                                 if (!textElement) {
                                     textElement = rateCell.querySelector('span');
@@ -1642,19 +1639,58 @@ class RMSHelper {
                                     rateCell.appendChild(textElement);
                                 }
                                 
-                                const oldValue = textElement.textContent;
-                                textElement.textContent = priceWithZeros;
+                                const oldValue = textElement.textContent || '';
+                                const oldUvValue = rateCell.getAttribute('uv') || '';
+                                
+                                // Stratégie de changement forcé pour déclencher la sauvegarde
+                                if (oldValue === priceWithZeros && oldUvValue === priceWithZeros) {
+                                    this.log('🔄 FORCE_CHANGE', 'Forçage changement pour cellule identique', {
+                                        carType,
+                                        oldValue,
+                                        targetValue: priceWithZeros,
+                                        sessionId: this.sessionId
+                                    });
+                                    
+                                    // Séquence de changement forcé : 0 → vraie valeur
+                                    rateCell.setAttribute('uv', '0');
+                                    textElement.textContent = '0';
+                                    
+                                    // Déclencher événements pour le changement vers 0
+                                    rateCell.dispatchEvent(new Event('cellvaluechanged', { bubbles: true }));
+                                    
+                                    // Attendre 50ms puis mettre la vraie valeur
+                                    setTimeout(() => {
+                                        rateCell.setAttribute('uv', priceWithZeros);
+                                        textElement.textContent = priceWithZeros;
+                                        
+                                        // Déclencher événements pour la vraie valeur
+                                        this.triggerInfragisticsValidation(rateCell, carType);
+                                        
+                                        this.log('✅ FORCED_CHANGE', 'Changement forcé terminé', {
+                                            carType,
+                                            finalValue: priceWithZeros,
+                                            sessionId: this.sessionId
+                                        });
+                                    }, 50);
+                                } else {
+                                    // Changement normal
+                                    rateCell.setAttribute('uv', priceWithZeros);
+                                    textElement.textContent = priceWithZeros;
+                                }
                                 
                                 this.log('📝 DIRECT_SET', 'Valeur mise à jour directement', {
                                     carType,
                                     oldValue,
                                     newValue: priceWithZeros,
                                     price: rates[carType],
+                                    needsForcing: oldValue === priceWithZeros,
                                     sessionId: this.sessionId
                                 });
 
-                                // Étape 3: Déclencher les événements de validation Infragistics
-                                this.triggerInfragisticsValidation(rateCell, carType);
+                                // Étape 3: Déclencher validation seulement si pas de changement forcé
+                                if (oldValue !== priceWithZeros || oldUvValue !== priceWithZeros) {
+                                    this.triggerInfragisticsValidation(rateCell, carType);
+                                }
 
                                 // Mise en évidence
                                 this.highlightCell(rateCell, 'success');
