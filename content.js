@@ -130,14 +130,19 @@ class RMSHelper {
                             sessionId: this.sessionId
                         });
 
-                        // Méthode 1: Événements Infragistics complets
-                        this.triggerInfragisticsValidation(cell, `cell-${i}`);
-
-                        // Méthode 2: Simulation d'interaction utilisateur
-                        await this.simulateUserInteraction(cell);
-
-                        // Méthode 3: Forcer un changement temporaire
-                        await this.forceTemporaryChange(cell, uvValue);
+                        // Nouvelle méthode : simulation de vrai clic utilisateur
+                        const success = await this.simulateRealUserClick(cell, uvValue, `cell-${i}`);
+                        
+                        if (!success) {
+                            this.log('⚠️ FALLBACK', 'Tentative méthodes alternatives', {
+                                cellId: cell.id || 'no-id',
+                                uvValue: uvValue,
+                                sessionId: this.sessionId
+                            });
+                            
+                            // Méthode de fallback: simulation d'interaction utilisateur
+                            await this.simulateUserInteraction(cell);
+                        }
 
                         validatedCount++;
 
@@ -202,41 +207,6 @@ class RMSHelper {
         cell.blur();
     }
 
-    // Forcer un changement temporaire pour déclencher la validation
-    async forceTemporaryChange(cell, originalValue) {
-        try {
-            // Sauvegarder les valeurs actuelles
-            const textElement = cell.querySelector('nobr') || cell.querySelector('span');
-            const originalText = textElement ? textElement.textContent : '';
-
-            // Changement temporaire vers une valeur différente
-            const tempValue = originalValue === '0' ? '1' : '0';
-            
-            // Étape 1: Changement temporaire
-            cell.setAttribute('uv', tempValue);
-            if (textElement) {
-                textElement.textContent = tempValue;
-            }
-            
-            // Déclencher événements pour le changement temporaire
-            this.triggerInfragisticsValidation(cell, 'temp');
-            
-            // Délai court
-            await new Promise(resolve => setTimeout(resolve, 50));
-            
-            // Étape 2: Restaurer la vraie valeur
-            cell.setAttribute('uv', originalValue);
-            if (textElement) {
-                textElement.textContent = originalText;
-            }
-            
-            // Déclencher événements pour la vraie valeur
-            this.triggerInfragisticsValidation(cell, 'final');
-            
-        } catch (error) {
-            console.warn('Erreur lors du changement temporaire:', error);
-        }
-    }
 
     // Validation finale globale de la grille
     async performFinalValidation() {
@@ -1877,9 +1847,9 @@ class RMSHelper {
                                 sessionId: this.sessionId
                             });
 
-                            // Approche hybride : modification directe + validation
+                            // Nouvelle approche : simulation de vrai clic utilisateur (imite action manuelle réussie)
                             try {
-                                this.log('🎯 DIRECT', 'Modification directe de la cellule', {
+                                this.log('🎯 REAL_USER_ACTION', 'Simulation action manuelle réussie', {
                                     carType,
                                     price: rates[carType],
                                     priceWithZeros,
@@ -1887,87 +1857,26 @@ class RMSHelper {
                                     sessionId: this.sessionId
                                 });
 
-                                // Étape 1: Forcer un changement pour déclencher la sauvegarde Infragistics
-                                let textElement = rateCell.querySelector('nobr');
-                                if (!textElement) {
-                                    textElement = rateCell.querySelector('span');
-                                }
-                                if (!textElement) {
-                                    // Créer un élément nobr si aucun n'existe
-                                    textElement = document.createElement('nobr');
-                                    rateCell.innerHTML = '';
-                                    rateCell.appendChild(textElement);
-                                }
+                                // Utiliser la nouvelle méthode de clic utilisateur réel
+                                const success = await this.simulateRealUserClick(rateCell, priceWithZeros, carType);
                                 
-                                const oldValue = textElement.textContent || '';
-                                const oldUvValue = rateCell.getAttribute('uv') || '';
-                                
-                                // Stratégie de changement forcé pour déclencher la sauvegarde
-                                if (oldValue === priceWithZeros && oldUvValue === priceWithZeros) {
-                                    this.log('🔄 FORCE_CHANGE', 'Forçage changement pour cellule identique', {
+                                if (success) {
+                                    // Mise en évidence
+                                    this.highlightCell(rateCell, 'success');
+                                    currentAttemptCount++;
+                                    modifiedCount = Math.max(modifiedCount, currentAttemptCount);
+                                    vehiclesMatched.push(carType);
+                                    
+                                    // Marquer cette cellule comme traitée avec succès
+                                    const cellKey = `${rateCell.id || 'no-id'}-${carType}`;
+                                    processedCells.add(cellKey);
+                                    
+                                    this.log('✅ SUCCESS', 'Cellule modifiée avec succès via clic réel', {
                                         carType,
-                                        oldValue,
-                                        targetValue: priceWithZeros,
-                                        sessionId: this.sessionId
+                                        sessionId: this.sessionId,
+                                        count: currentAttemptCount,
+                                        cellKey: cellKey.substring(0, 30)
                                     });
-                                    
-                                    // Séquence de changement forcé : 0 → vraie valeur
-                                    rateCell.setAttribute('uv', '0');
-                                    textElement.textContent = '0';
-                                    
-                                    // Déclencher événements pour le changement vers 0
-                                    rateCell.dispatchEvent(new Event('cellvaluechanged', { bubbles: true }));
-                                    
-                                    // Attendre 50ms puis mettre la vraie valeur
-                                    setTimeout(() => {
-                                        rateCell.setAttribute('uv', priceWithZeros);
-                                        textElement.textContent = priceWithZeros;
-                                        
-                                        // Déclencher événements pour la vraie valeur
-                                        this.triggerInfragisticsValidation(rateCell, carType);
-                                        
-                                        this.log('✅ FORCED_CHANGE', 'Changement forcé terminé', {
-                                            carType,
-                                            finalValue: priceWithZeros,
-                                            sessionId: this.sessionId
-                                        });
-                                    }, 50);
-                                } else {
-                                    // Changement normal
-                                    rateCell.setAttribute('uv', priceWithZeros);
-                                    textElement.textContent = priceWithZeros;
-                                }
-                                
-                                this.log('📝 DIRECT_SET', 'Valeur mise à jour directement', {
-                                    carType,
-                                    oldValue,
-                                    newValue: priceWithZeros,
-                                    price: rates[carType],
-                                    needsForcing: oldValue === priceWithZeros,
-                                    sessionId: this.sessionId
-                                });
-
-                                // Étape 3: Déclencher validation seulement si pas de changement forcé
-                                if (oldValue !== priceWithZeros || oldUvValue !== priceWithZeros) {
-                                    this.triggerInfragisticsValidation(rateCell, carType);
-                                }
-
-                                // Mise en évidence
-                                this.highlightCell(rateCell, 'success');
-                                currentAttemptCount++;
-                                modifiedCount = Math.max(modifiedCount, currentAttemptCount);
-                                vehiclesMatched.push(carType);
-                                
-                                // Marquer cette cellule comme traitée avec succès
-                                const cellKey = `${rateCell.id || 'no-id'}-${carType}`;
-                                processedCells.add(cellKey);
-                                
-                                this.log('✅ SUCCESS', 'Cellule modifiée avec succès', {
-                                    carType,
-                                    sessionId: this.sessionId,
-                                    count: currentAttemptCount,
-                                    cellKey: cellKey.substring(0, 30)
-                                });
                                 
                             } catch (cellError) {
                                 this.log('❌ CELL_ERROR', 'Erreur modification cellule', {
@@ -2632,79 +2541,187 @@ class RMSHelper {
         }, 3000);
     }
 
-    // Fonction pour déclencher la validation Infragistics après modification directe
-    triggerInfragisticsValidation(rateCell, carType) {
-        try {
-            this.log('🔄 VALIDATION', 'Début validation Infragistics', {
-                carType,
-                cellId: rateCell.id || 'no-id',
-                sessionId: this.sessionId
-            });
+    // Fonction pour simuler un vrai clic utilisateur et modifier l'INPUT créé (comme action manuelle)
+    async simulateRealUserClick(rateCell, newValue, carType) {
+        this.log('🖱️ REAL_CLICK', 'Début simulation vrai clic utilisateur', {
+            carType,
+            newValue,
+            cellId: rateCell.id || 'no-id',
+            sessionId: this.sessionId
+        });
 
-            // Événements de modification sur la cellule
-            rateCell.dispatchEvent(new Event('input', { bubbles: true }));
-            rateCell.dispatchEvent(new Event('change', { bubbles: true }));
-            rateCell.dispatchEvent(new Event('blur', { bubbles: true }));
-            
-            // Événements Infragistics spécifiques
-            rateCell.dispatchEvent(new CustomEvent('cellvaluechanged', { 
-                bubbles: true,
-                detail: { newValue: rateCell.getAttribute('uv') }
-            }));
-            
-            // Événements sur la grille pour forcer la mise à jour
-            const grid = document.getElementById('uwgDisplayGrid');
-            if (grid) {
-                grid.dispatchEvent(new CustomEvent('cellchange', { bubbles: true }));
-                grid.dispatchEvent(new CustomEvent('aftercellupdate', { bubbles: true }));
-            }
+        return new Promise((resolve) => {
+            try {
+                // Étape 1: Focus sur la cellule pour s'assurer qu'elle est active
+                rateCell.focus();
+                rateCell.scrollIntoView({ behavior: 'smooth', block: 'center' });
 
-            // Événements clavier sur la cellule
-            rateCell.dispatchEvent(new KeyboardEvent('keydown', { 
-                key: 'Enter', 
-                keyCode: 13, 
-                which: 13,
-                bubbles: true 
-            }));
-            
-            rateCell.dispatchEvent(new KeyboardEvent('keyup', { 
-                key: 'Enter', 
-                keyCode: 13, 
-                which: 13,
-                bubbles: true 
-            }));
+                // Étape 2: Simulation d'un vrai clic utilisateur avec coordonnées
+                const rect = rateCell.getBoundingClientRect();
+                const centerX = rect.left + rect.width / 2;
+                const centerY = rect.top + rect.height / 2;
 
-            // Validation finale : clic sur header pour forcer la sauvegarde
-            setTimeout(() => {
-                try {
-                    const gridHeader = document.querySelector('#uwgDisplayGrid_hdiv');
-                    if (gridHeader) {
-                        gridHeader.click();
-                        this.log('🔄 HEADER_CLICK', 'Clic header pour validation finale', {
+                // Événements de souris complets pour simuler un vrai clic
+                const mouseEvents = [
+                    new MouseEvent('mousedown', {
+                        bubbles: true,
+                        cancelable: true,
+                        view: window,
+                        clientX: centerX,
+                        clientY: centerY,
+                        button: 0
+                    }),
+                    new MouseEvent('mouseup', {
+                        bubbles: true,
+                        cancelable: true,
+                        view: window,
+                        clientX: centerX,
+                        clientY: centerY,
+                        button: 0
+                    }),
+                    new MouseEvent('click', {
+                        bubbles: true,
+                        cancelable: true,
+                        view: window,
+                        clientX: centerX,
+                        clientY: centerY,
+                        button: 0
+                    })
+                ];
+
+                // Déclencher les événements de souris
+                mouseEvents.forEach(event => rateCell.dispatchEvent(event));
+
+                this.log('🖱️ CLICK_SENT', 'Clic utilisateur simulé avec coordonnées', {
+                    carType,
+                    coordinates: { x: centerX, y: centerY },
+                    sessionId: this.sessionId
+                });
+
+                // Étape 3: Attendre qu'Infragistics crée l'INPUT (comme votre action manuelle)
+                let attempts = 0;
+                const maxAttempts = 10;
+                const checkInterval = 100;
+
+                const checkForInput = () => {
+                    attempts++;
+                    
+                    // Chercher l'INPUT créé par Infragistics
+                    const input = rateCell.querySelector('input[type="text"]') || 
+                                 rateCell.querySelector('input:not([type])') ||
+                                 rateCell.querySelector('input');
+
+                    if (input) {
+                        this.log('✅ INPUT_FOUND', 'INPUT créé par Infragistics trouvé', {
                             carType,
+                            inputType: input.type || 'text',
+                            currentValue: input.value,
+                            attempts,
                             sessionId: this.sessionId
                         });
+
+                        // Étape 4: Modifier l'INPUT réel créé par Infragistics
+                        this.modifyRealInput(input, newValue, carType).then(resolve);
+                        
+                    } else if (attempts < maxAttempts) {
+                        this.log('⏳ WAITING_INPUT', 'Attente création INPUT', {
+                            carType,
+                            attempts,
+                            maxAttempts,
+                            sessionId: this.sessionId
+                        });
+                        
+                        setTimeout(checkForInput, checkInterval);
+                    } else {
+                        this.log('❌ NO_INPUT_CREATED', 'Aucun INPUT créé après clic', {
+                            carType,
+                            attempts,
+                            sessionId: this.sessionId
+                        });
+                        
+                        resolve(false);
                     }
-                } catch (e) {
-                    this.log('⚠️ HEADER_ERROR', 'Erreur clic header', {
-                        carType,
-                        error: e.message,
-                        sessionId: this.sessionId
-                    });
-                }
-            }, 50);
-            
-            this.log('✅ VALIDATION_OK', 'Événements de validation déclenchés', {
+                };
+
+                // Commencer à chercher l'INPUT après un délai court
+                setTimeout(checkForInput, 50);
+
+            } catch (error) {
+                this.log('❌ REAL_CLICK_ERROR', 'Erreur lors du clic utilisateur', {
+                    carType,
+                    error: error.message,
+                    sessionId: this.sessionId
+                });
+                resolve(false);
+            }
+        });
+    }
+
+    // Fonction pour modifier l'INPUT réel créé par Infragistics
+    async modifyRealInput(input, newValue, carType) {
+        try {
+            this.log('📝 MODIFY_INPUT', 'Modification INPUT réel', {
                 carType,
+                oldValue: input.value,
+                newValue,
                 sessionId: this.sessionId
             });
-            
+
+            // Étape 1: Focus sur l'INPUT
+            input.focus();
+            input.select(); // Sélectionner tout le texte
+
+            // Étape 2: Vider et saisir la nouvelle valeur
+            input.value = '';
+            input.value = newValue;
+
+            // Étape 3: Événements de saisie
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+
+            this.log('📝 INPUT_MODIFIED', 'Valeur saisie dans INPUT réel', {
+                carType,
+                value: input.value,
+                sessionId: this.sessionId
+            });
+
+            // Étape 4: Validation avec Enter (comme votre action manuelle)
+            await new Promise(resolve => {
+                const enterEvent = new KeyboardEvent('keydown', {
+                    key: 'Enter',
+                    keyCode: 13,
+                    which: 13,
+                    bubbles: true,
+                    cancelable: true
+                });
+
+                input.dispatchEvent(enterEvent);
+
+                this.log('⌨️ ENTER_SENT', 'Touche Enter envoyée pour validation', {
+                    carType,
+                    sessionId: this.sessionId
+                });
+
+                // Attendre un peu pour que Infragistics traite la validation
+                setTimeout(() => {
+                    this.log('✅ REAL_VALIDATION_COMPLETE', 'Validation réelle terminée', {
+                        carType,
+                        finalValue: input.value,
+                        sessionId: this.sessionId
+                    });
+                    resolve(true);
+                }, 200);
+            });
+
+            return true;
+
         } catch (error) {
-            this.log('❌ VALIDATION_ERROR', 'Erreur lors de la validation', {
+            this.log('❌ INPUT_MODIFY_ERROR', 'Erreur lors de la modification INPUT', {
                 carType,
                 error: error.message,
                 sessionId: this.sessionId
             });
+            return false;
         }
     }
 }
