@@ -1848,46 +1848,37 @@ class RMSHelper {
                             });
 
                             // Nouvelle approche : simulation de vrai clic utilisateur (imite action manuelle réussie)
-                            try {
-                                this.log('🎯 REAL_USER_ACTION', 'Simulation action manuelle réussie', {
-                                    carType,
-                                    price: rates[carType],
-                                    priceWithZeros,
-                                    cellId: rateCell.id || 'no-id',
-                                    sessionId: this.sessionId
-                                });
+                            this.log('🎯 REAL_USER_ACTION', 'Simulation action manuelle réussie', {
+                                carType,
+                                price: rates[carType],
+                                priceWithZeros,
+                                cellId: rateCell.id || 'no-id',
+                                sessionId: this.sessionId
+                            });
 
-                                // Utiliser la nouvelle méthode de clic utilisateur réel
-                                const success = await this.simulateRealUserClick(rateCell, priceWithZeros, carType);
+                            // Utiliser la nouvelle méthode de clic utilisateur réel
+                            const success = await this.simulateRealUserClick(rateCell, priceWithZeros, carType);
+                            
+                            if (success) {
+                                // Mise en évidence
+                                this.highlightCell(rateCell, 'success');
+                                currentAttemptCount++;
+                                modifiedCount = Math.max(modifiedCount, currentAttemptCount);
+                                vehiclesMatched.push(carType);
                                 
-                                if (success) {
-                                    // Mise en évidence
-                                    this.highlightCell(rateCell, 'success');
-                                    currentAttemptCount++;
-                                    modifiedCount = Math.max(modifiedCount, currentAttemptCount);
-                                    vehiclesMatched.push(carType);
-                                    
-                                    // Marquer cette cellule comme traitée avec succès
-                                    const cellKey = `${rateCell.id || 'no-id'}-${carType}`;
-                                    processedCells.add(cellKey);
-                                    
-                                    this.log('✅ SUCCESS', 'Cellule modifiée avec succès via clic réel', {
-                                        carType,
-                                        sessionId: this.sessionId,
-                                        count: currentAttemptCount,
-                                        cellKey: cellKey.substring(0, 30)
-                                    });
-                                } else {
-                                    this.log('❌ FAILED', 'Échec modification via clic réel', {
-                                        carType,
-                                        sessionId: this.sessionId
-                                    });
-                                }
+                                // Marquer cette cellule comme traitée avec succès
+                                const cellKey = `${rateCell.id || 'no-id'}-${carType}`;
+                                processedCells.add(cellKey);
                                 
-                            } catch (cellError) {
-                                this.log('❌ CELL_ERROR', 'Erreur modification cellule', {
+                                this.log('✅ SUCCESS', 'Cellule modifiée avec succès via clic réel', {
                                     carType,
-                                    error: cellError.message,
+                                    sessionId: this.sessionId,
+                                    count: currentAttemptCount,
+                                    cellKey: cellKey.substring(0, 30)
+                                });
+                            } else {
+                                this.log('❌ FAILED', 'Échec modification via clic réel', {
+                                    carType,
                                     sessionId: this.sessionId
                                 });
                             }
