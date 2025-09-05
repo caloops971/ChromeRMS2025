@@ -1883,10 +1883,13 @@ class RMSHelper {
                                 });
                             }
                         } else {
-                            console.log(`❌ Cellule rate non trouvée pour ${carType}`);
+                            this.log('❌ NO_RATE_CELL', 'Cellule rate non trouvée', {
+                                carType,
+                                sessionId: this.sessionId
+                            });
                         }
                     } else {
-                        console.log(`⚠️ Aucun tarif configuré pour ${carType}`);
+                        // Pas de tarif pour ce véhicule - normal, on continue
                     }
                 } catch (error) {
                     this.log('❌ ROW_ERROR', 'Erreur sur la ligne', {
