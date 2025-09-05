@@ -1548,6 +1548,7 @@ class RMSHelper {
             const vehiclesFound = [];
             const vehiclesWithRates = [];
             const vehiclesMatched = [];
+            const processedCells = new Set(); // Pour éviter de retraiter les cellules déjà modifiées
 
             for (let index = 0; index < gridRows.length; index++) {
                 const row = gridRows[index];
@@ -1593,11 +1594,28 @@ class RMSHelper {
                         }
 
                         if (rateCell) {
+                            // Vérifier si cette cellule a déjà été traitée avec succès
+                            const cellKey = `${rateCell.id || 'no-id'}-${carType}`;
+                            if (processedCells.has(cellKey)) {
+                                this.log('⏭️ SKIP', 'Cellule déjà traitée avec succès', {
+                                    carType,
+                                    cellId: rateCell.id || 'no-id',
+                                    attempts,
+                                    sessionId: this.sessionId
+                                });
+                                continue;
+                            }
+
                             const price = rates[carType];
                             const priceWithZeros = (price * 100).toString();
 
-                            console.log(`💰 Modification ${carType}: ${price}€ → ${priceWithZeros}`);
-                            console.log(`🔍 Cellule rate trouvée:`, rateCell);
+                            this.log('💰 PRICE', 'Préparation modification', {
+                                carType,
+                                price,
+                                priceWithZeros,
+                                attempts,
+                                sessionId: this.sessionId
+                            });
 
                             // Approche hybride : modification directe + validation
                             try {
@@ -1644,10 +1662,15 @@ class RMSHelper {
                                 modifiedCount = Math.max(modifiedCount, currentAttemptCount);
                                 vehiclesMatched.push(carType);
                                 
+                                // Marquer cette cellule comme traitée avec succès
+                                const cellKey = `${rateCell.id || 'no-id'}-${carType}`;
+                                processedCells.add(cellKey);
+                                
                                 this.log('✅ SUCCESS', 'Cellule modifiée avec succès', {
                                     carType,
                                     sessionId: this.sessionId,
-                                    count: currentAttemptCount
+                                    count: currentAttemptCount,
+                                    cellKey: cellKey.substring(0, 30)
                                 });
                                 
                             } catch (cellError) {
@@ -1699,14 +1722,31 @@ class RMSHelper {
 
             // Continuer tant qu'on trouve des correspondances et qu'on n'a pas tout traité
             if (vehiclesMatched.length >= availableVehicles.length) {
-                console.log(`🎉 Tous les tarifs trouvés (${vehiclesMatched.length}/${availableVehicles.length})`);
+                this.log('🎉 COMPLETE', 'Tous les tarifs trouvés', {
+                    matched: vehiclesMatched.length,
+                    total: availableVehicles.length,
+                    sessionId: this.sessionId
+                });
                 break;
             }
             
-            // Si on ne progresse plus après 2 tentatives, forcer une dernière fois
+            // Si on ne progresse plus après 2 tentatives, arrêter
             if (attempts >= 2 && currentAttemptCount === 0) {
-                console.log(`🔧 Dernière tentative avec méthode alternative...`);
-                modifiedCount += await this.forceModifyRemainingRates(seasonName, rateCode, vehiclesMatched);
+                this.log('🔧 STOP', 'Arrêt - Aucun progrès détecté', {
+                    attempts,
+                    currentAttemptCount,
+                    sessionId: this.sessionId
+                });
+                break;
+            }
+            
+            // Arrêter après 3 tentatives maximum pour éviter les boucles infinies
+            if (attempts >= 3) {
+                this.log('🛑 LIMIT', 'Arrêt - Limite de tentatives atteinte', {
+                    attempts,
+                    vehiclesMatched: vehiclesMatched.length,
+                    sessionId: this.sessionId
+                });
                 break;
             }
         }
