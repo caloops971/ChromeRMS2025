@@ -13,9 +13,13 @@ class RMSHelper {
         this.sessionId = Date.now(); // Identifiant unique pour cette session
         this.logBuffer = []; // Buffer pour stocker les logs
         this.isReloading = false;
+        this.serverErrorDetected = false;
+        this.extensionActive = true; // État de l'extension (active/inactive)
         
         this.log('🚀 DÉMARRAGE', 'Initialisation de RMSHelper', { sessionId: this.sessionId });
         this.detectExtensionReload();
+        this.detectServerError();
+        this.restoreExtensionState();
         this.init();
     }
 
@@ -86,6 +90,12 @@ class RMSHelper {
 
     // Fonction pour forcer manuellement la validation de tous les champs
     async forceManualValidation() {
+        // Vérifier si l'extension est active
+        if (!this.extensionActive) {
+            this.showNotification('🔒 Extension désactivée ! Réactivez-la pour utiliser cette fonction.', 'warning');
+            return;
+        }
+        
         this.log('🔄 MANUAL_VALIDATION', 'Début de la validation manuelle forcée', {
             sessionId: this.sessionId
         });
@@ -558,6 +568,9 @@ class RMSHelper {
         
         // Créer le bouton des paramètres
         this.createSettingsButton();
+        
+        // Mettre à jour l'état de l'UI selon l'état de l'extension
+        this.updateExtensionStateUI();
     }
 
     getUIHTML() {
@@ -636,6 +649,14 @@ class RMSHelper {
                         </button>
                         <button id="quick-config-btn" class="rms-btn rms-btn-info rms-btn-compact">
                             🔄 Sync Données
+                        </button>
+                    </div>
+                    <div class="rms-actions-grid" style="margin-top: 8px;">
+                        <button id="deactivate-extension" class="rms-btn rms-btn-compact" style="background: linear-gradient(135deg, #f59e0b, #d97706); color: white;">
+                            🔒 Désactiver
+                        </button>
+                        <button id="reactivate-extension" class="rms-btn rms-btn-compact" style="background: linear-gradient(135deg, #10b981, #059669); color: white; display: none;">
+                            🔓 Réactiver
                         </button>
                     </div>
                 </div>
@@ -750,6 +771,22 @@ class RMSHelper {
 
         // Boutons d'action
         document.addEventListener('click', (e) => {
+            // Boutons de désactivation/réactivation - TOUJOURS actifs
+            if (e.target.id === 'deactivate-extension') {
+                this.deactivateExtension();
+                return;
+            }
+            if (e.target.id === 'reactivate-extension') {
+                this.reactivateExtension();
+                return;
+            }
+            
+            // Autres boutons - seulement si l'extension est active
+            if (!this.extensionActive) {
+                this.showNotification('🔒 Extension désactivée ! Cliquez sur "🔓 Réactiver" pour utiliser cette fonction.', 'warning');
+                return;
+            }
+            
             if (e.target.id === 'fill-form-btn') {
                 this.fillForm();
             }
@@ -1571,6 +1608,18 @@ class RMSHelper {
 
     // Remplissage automatique de TOUS les tarifs
     async autoFillAllRates() {
+        // Vérifier si l'extension est active
+        if (!this.extensionActive) {
+            this.showNotification('🔒 Extension désactivée ! Réactivez-la pour continuer.', 'warning');
+            return;
+        }
+        
+        // Vérifier s'il y a une erreur serveur
+        if (this.serverErrorDetected) {
+            this.showNotification('🚨 Erreur serveur détectée ! Rechargez la page avant de continuer.', 'error');
+            return;
+        }
+        
         const selectedSeason = document.getElementById('season-select').value;
         const selectedBrand = document.getElementById('brand-select').value;
         
@@ -1612,52 +1661,38 @@ class RMSHelper {
         if (modifiedCount > 0) {
             this.showNotification(`✅ ${modifiedCount} tarifs modifiés pour la saison "${selectedSeason}"!`, 'success');
             
-            // Validation finale globale : forcer la sauvegarde de toutes les modifications
+            // Validation finale simple et non-agressive
             setTimeout(() => {
                 try {
-                    this.log('🔄 FINAL_VALIDATION', 'Validation finale globale', {
+                    this.log('🔄 SIMPLE_VALIDATION', 'Validation finale simple', {
                         modifiedCount,
                         sessionId: this.sessionId
                     });
 
-                    // Déclencher les événements de sauvegarde globaux
-                    const grid = document.getElementById('uwgDisplayGrid');
-                    if (grid) {
-                        grid.dispatchEvent(new CustomEvent('gridupdate', { bubbles: true }));
-                        grid.dispatchEvent(new CustomEvent('datachanged', { bubbles: true }));
-                    }
-
-                    // Cliquer sur le header pour finaliser
+                    // Simple clic sur le header pour finaliser (méthode la moins intrusive)
                     const gridHeader = document.querySelector('#uwgDisplayGrid_hdiv');
                     if (gridHeader) {
                         gridHeader.click();
-                        this.log('🔄 HEADER_FINAL', 'Clic header final pour sauvegarde', {
+                        this.log('🔄 HEADER_CLICK', 'Clic header simple pour validation', {
                             sessionId: this.sessionId
                         });
                     }
-
-                    // Déclencher un événement de postback si nécessaire
-                    setTimeout(() => {
-                        try {
-                            const form = document.querySelector('form');
-                            if (form) {
-                                form.dispatchEvent(new Event('change', { bubbles: true }));
-                            }
-                        } catch (e) {
-                            this.log('⚠️ FORM_ERROR', 'Erreur événement form', {
-                                error: e.message,
-                                sessionId: this.sessionId
-                            });
-                        }
-                    }, 100);
+                    
+                    // Plus de désactivation automatique - contrôle manuel uniquement
+                    this.log('✅ INJECTION_COMPLETE', 'Injection terminée - Extension reste active', {
+                        modifiedCount,
+                        sessionId: this.sessionId
+                    });
+                    
+                    this.showNotification(`✅ ${modifiedCount} tarifs injectés avec succès ! Extension reste active.`, 'success');
 
                 } catch (error) {
-                    this.log('❌ FINAL_ERROR', 'Erreur validation finale', {
+                    this.log('❌ VALIDATION_ERROR', 'Erreur validation simple', {
                         error: error.message,
                         sessionId: this.sessionId
                     });
                 }
-            }, 300);
+            }, 200);
             
         } else {
             this.showNotification('❌ Aucun tarif trouvé pour cette configuration', 'error');
@@ -1736,7 +1771,8 @@ class RMSHelper {
         const rates = seasonRates[rateCode];
         let modifiedCount = 0;
         let attempts = 0;
-        const maxAttempts = 5;
+        const maxAttempts = 2; // Réduire à 2 tentatives maximum
+        const processedCells = new Set(); // Pour éviter de retraiter les cellules déjà modifiées
 
         console.log(`🔍 Recherche des lignes du tableau pour ${seasonName} - ${rateCode}`);
         console.log(`📊 Tarifs disponibles (${Object.keys(rates).length}):`, Object.keys(rates));
@@ -1752,7 +1788,17 @@ class RMSHelper {
             
             // Attendre entre chaque tentative
             if (attempts > 1) {
-                await new Promise(resolve => setTimeout(resolve, 200));
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+            
+            // Vérifier si on a déjà traité toutes les cellules possibles
+            if (processedCells.size >= Object.keys(rates).length) {
+                this.log('✅ ALL_PROCESSED', 'Toutes les cellules déjà traitées', {
+                    processedCount: processedCells.size,
+                    totalRates: Object.keys(rates).length,
+                    sessionId: this.sessionId
+                });
+                break;
             }
 
             // Essayer plusieurs sélecteurs pour trouver les lignes
@@ -1778,7 +1824,6 @@ class RMSHelper {
             const vehiclesFound = [];
             const vehiclesWithRates = [];
             const vehiclesMatched = [];
-            const processedCells = new Set(); // Pour éviter de retraiter les cellules déjà modifiées
 
             for (let index = 0; index < gridRows.length; index++) {
                 const row = gridRows[index];
@@ -1794,7 +1839,7 @@ class RMSHelper {
                         }
                     }
 
-                    if (!carTypeCell) return;
+                    if (!carTypeCell) continue;
 
                     const carType = carTypeCell.textContent.trim();
                     vehiclesFound.push(carType);
@@ -1803,14 +1848,6 @@ class RMSHelper {
                     // Vérifier si on a un tarif pour ce car type
                     if (rates[carType]) {
                         vehiclesWithRates.push(carType);
-                        this.log('✅ MATCH', 'Tarif trouvé pour véhicule', {
-                            carType,
-                            price: rates[carType],
-                            seasonName,
-                            rateCode,
-                            sessionId: this.sessionId,
-                            attemptNumber: attempts
-                        });
                         
                         // Plusieurs stratégies pour trouver la cellule Rate
                         let rateCell = row.querySelector('[id$="_5"]');
@@ -1831,10 +1868,20 @@ class RMSHelper {
                                     carType,
                                     cellId: rateCell.id || 'no-id',
                                     attempts,
+                                    processedCount: processedCells.size,
                                     sessionId: this.sessionId
                                 });
                                 continue;
                             }
+                            
+                            this.log('✅ MATCH', 'Tarif trouvé pour véhicule', {
+                                carType,
+                                price: rates[carType],
+                                seasonName,
+                                rateCode,
+                                sessionId: this.sessionId,
+                                attemptNumber: attempts
+                            });
 
                             const price = rates[carType];
                             const priceWithZeros = (price * 100).toString();
@@ -1870,6 +1917,13 @@ class RMSHelper {
                                 const cellKey = `${rateCell.id || 'no-id'}-${carType}`;
                                 processedCells.add(cellKey);
                                 
+                                this.log('✅ CELL_MARKED', 'Cellule marquée comme traitée', {
+                                    carType,
+                                    cellKey,
+                                    processedCount: processedCells.size,
+                                    sessionId: this.sessionId
+                                });
+                                
                                 this.log('✅ SUCCESS', 'Cellule modifiée avec succès via clic réel', {
                                     carType,
                                     sessionId: this.sessionId,
@@ -1877,10 +1931,71 @@ class RMSHelper {
                                     cellKey: cellKey.substring(0, 30)
                                 });
                             } else {
-                                this.log('❌ FAILED', 'Échec modification via clic réel', {
+                                this.log('❌ FAILED', 'Échec modification via double-clic', {
                                     carType,
                                     sessionId: this.sessionId
                                 });
+                                
+                                // Tentative 1 : INPUT temporaire
+                                this.log('🔧 FALLBACK_1', 'Tentative INPUT temporaire', {
+                                    carType,
+                                    newValue: priceWithZeros,
+                                    sessionId: this.sessionId
+                                });
+                                
+                                const tempInputSuccess = await this.createTemporaryInput(rateCell, priceWithZeros, carType);
+                                
+                                if (tempInputSuccess) {
+                                    // Marquer cette cellule comme traitée avec succès
+                                    const cellKey = `${rateCell.id || 'no-id'}-${carType}`;
+                                    processedCells.add(cellKey);
+                                    
+                                    this.log('✅ CELL_MARKED_TEMP', 'Cellule marquée comme traitée (temp input)', {
+                                        carType,
+                                        cellKey,
+                                        processedCount: processedCells.size,
+                                        sessionId: this.sessionId
+                                    });
+                                    
+                                    this.log('✅ TEMP_INPUT_SUCCESS', 'Modification via INPUT temporaire réussie', {
+                                        carType,
+                                        sessionId: this.sessionId
+                                    });
+                                    
+                                    modifiedCount++;
+                                    vehiclesMatched.push(carType);
+                                    currentAttemptCount++;
+                                } else {
+                                    // Tentative 2 : modification directe conservatrice
+                                    this.log('🔧 FALLBACK_2', 'Tentative modification directe', {
+                                        carType,
+                                        newValue: priceWithZeros,
+                                        sessionId: this.sessionId
+                                    });
+                                    
+                                    const directSuccess = await this.directModifyCell(rateCell, priceWithZeros, carType);
+                                    if (directSuccess) {
+                                        this.highlightCell(rateCell, 'warning');
+                                        currentAttemptCount++;
+                                        modifiedCount = Math.max(modifiedCount, currentAttemptCount);
+                                        vehiclesMatched.push(carType);
+                                        
+                                        const cellKey = `${rateCell.id || 'no-id'}-${carType}`;
+                                        processedCells.add(cellKey);
+                                        
+                                        this.log('✅ CELL_MARKED_DIRECT', 'Cellule marquée comme traitée (directe)', {
+                                            carType,
+                                            cellKey,
+                                            processedCount: processedCells.size,
+                                            sessionId: this.sessionId
+                                        });
+                                        
+                                        this.log('✅ DIRECT_SUCCESS', 'Modification directe réussie', {
+                                            carType,
+                                            sessionId: this.sessionId
+                                        });
+                                    }
+                                }
                             }
                         } else {
                             this.log('❌ NO_RATE_CELL', 'Cellule rate non trouvée', {
@@ -1926,30 +2041,32 @@ class RMSHelper {
             }
 
             // Continuer tant qu'on trouve des correspondances et qu'on n'a pas tout traité
-            if (vehiclesMatched.length >= availableVehicles.length) {
-                this.log('🎉 COMPLETE', 'Tous les tarifs trouvés', {
-                    matched: vehiclesMatched.length,
+            if (processedCells.size >= availableVehicles.length) {
+                this.log('🎉 COMPLETE', 'Tous les tarifs traités', {
+                    processedCount: processedCells.size,
                     total: availableVehicles.length,
                     sessionId: this.sessionId
                 });
                 break;
             }
             
-            // Si on ne progresse plus après 2 tentatives, arrêter
-            if (attempts >= 2 && currentAttemptCount === 0) {
+            // Si on ne progresse plus après 1 tentative, arrêter
+            if (attempts >= 1 && currentAttemptCount === 0) {
                 this.log('🔧 STOP', 'Arrêt - Aucun progrès détecté', {
                     attempts,
                     currentAttemptCount,
+                    processedCount: processedCells.size,
                     sessionId: this.sessionId
                 });
                 break;
             }
             
-            // Arrêter après 3 tentatives maximum pour éviter les boucles infinies
-            if (attempts >= 3) {
+            // Arrêter après 2 tentatives maximum pour éviter les boucles infinies
+            if (attempts >= maxAttempts) {
                 this.log('🛑 LIMIT', 'Arrêt - Limite de tentatives atteinte', {
                     attempts,
-                    vehiclesMatched: vehiclesMatched.length,
+                    maxAttempts,
+                    processedCount: processedCells.size,
                     sessionId: this.sessionId
                 });
                 break;
@@ -1958,6 +2075,274 @@ class RMSHelper {
 
         console.log(`📊 Résultat final: ${modifiedCount} tarifs modifiés sur ${Object.keys(rates).length} disponibles`);
         return modifiedCount;
+    }
+
+    // Méthode alternative de modification directe de la cellule (plus conservatrice)
+    // Nouvelle méthode : créer notre propre INPUT temporaire
+    async createTemporaryInput(rateCell, newValue, carType) {
+        try {
+            this.log('🔧 TEMP_INPUT', 'Création INPUT temporaire', {
+                carType,
+                newValue,
+                cellId: rateCell.id || 'no-id',
+                sessionId: this.sessionId
+            });
+
+            // Sauvegarder l'état original
+            const originalContent = rateCell.textContent;
+            const originalStyle = rateCell.style.cssText;
+            
+            // Créer un input temporaire
+            const tempInput = document.createElement('input');
+            tempInput.type = 'text';
+            tempInput.value = newValue;
+            tempInput.style.cssText = `
+                width: 100%;
+                height: 100%;
+                border: none;
+                background: white;
+                font-family: inherit;
+                font-size: inherit;
+                text-align: center;
+                padding: 2px;
+            `;
+            
+            // Remplacer le contenu de la cellule
+            rateCell.innerHTML = '';
+            rateCell.appendChild(tempInput);
+            
+            // Focus et sélection
+            tempInput.focus();
+            tempInput.select();
+            
+            // Attendre un peu puis simuler la validation
+            await new Promise(resolve => setTimeout(resolve, 200));
+            
+            // Déclencher les événements de validation
+            tempInput.dispatchEvent(new Event('input', { bubbles: true }));
+            tempInput.dispatchEvent(new Event('change', { bubbles: true }));
+            
+            // Simuler Enter pour valider
+            tempInput.dispatchEvent(new KeyboardEvent('keydown', {
+                key: 'Enter',
+                code: 'Enter',
+                keyCode: 13,
+                which: 13,
+                bubbles: true
+            }));
+            
+            await new Promise(resolve => setTimeout(resolve, 100));
+            
+            // Restaurer la cellule avec la nouvelle valeur
+            rateCell.innerHTML = newValue;
+            rateCell.setAttribute('uv', newValue);
+            rateCell.style.cssText = originalStyle;
+            
+            this.log('✅ TEMP_INPUT_SUCCESS', 'INPUT temporaire validé', {
+                carType,
+                newValue,
+                sessionId: this.sessionId
+            });
+            
+            return true;
+            
+        } catch (error) {
+            this.log('❌ TEMP_INPUT_ERROR', 'Erreur INPUT temporaire', {
+                carType,
+                error: error.message,
+                sessionId: this.sessionId
+            });
+            return false;
+        }
+    }
+
+    async directModifyCell(rateCell, newValue, carType) {
+        try {
+            this.log('🔧 DIRECT_MODIFY', 'Début modification directe conservatrice', {
+                carType,
+                newValue,
+                cellId: rateCell.id || 'no-id',
+                sessionId: this.sessionId
+            });
+
+            // Vérifier que la cellule existe et est modifiable
+            if (!rateCell || !rateCell.hasAttribute('uv')) {
+                this.log('❌ INVALID_CELL', 'Cellule invalide ou non modifiable', {
+                    carType,
+                    hasUv: rateCell ? rateCell.hasAttribute('uv') : false,
+                    sessionId: this.sessionId
+                });
+                return false;
+            }
+
+            const oldValue = rateCell.getAttribute('uv');
+            
+            // Si la valeur est déjà correcte, ne pas modifier
+            if (oldValue === newValue) {
+                this.log('✅ ALREADY_CORRECT', 'Valeur déjà correcte', {
+                    carType,
+                    value: oldValue,
+                    sessionId: this.sessionId
+                });
+                return true;
+            }
+
+            // Méthode conservatrice : modifier uniquement l'attribut uv et le contenu texte
+            rateCell.setAttribute('uv', newValue);
+            rateCell.textContent = newValue;
+            
+            this.log('📝 UV_UPDATED', 'Attribut UV modifié (conservatif)', {
+                carType,
+                oldValue,
+                newValue,
+                sessionId: this.sessionId
+            });
+
+            // Événements minimaux pour éviter de perturber le serveur
+            try {
+                rateCell.dispatchEvent(new Event('change', { bubbles: true }));
+                
+                // Attendre un peu avant la validation finale
+                await new Promise(resolve => setTimeout(resolve, 100));
+                
+            } catch (e) {
+                this.log('⚠️ EVENT_ERROR', 'Erreur événement', {
+                    error: e.message,
+                    sessionId: this.sessionId
+                });
+            }
+
+            return true;
+            
+        } catch (error) {
+            this.log('❌ DIRECT_ERROR', 'Erreur modification directe', {
+                carType,
+                error: error.message,
+                sessionId: this.sessionId
+            });
+            return false;
+        }
+    }
+
+    // Restaurer l'état de l'extension depuis localStorage
+    restoreExtensionState() {
+        const savedState = localStorage.getItem('rms_extension_active');
+        if (savedState !== null) {
+            this.extensionActive = savedState === 'true';
+            this.log('🔄 STATE_RESTORED', 'État extension restauré', {
+                active: this.extensionActive,
+                sessionId: this.sessionId
+            });
+        }
+    }
+
+    // Détecter les erreurs serveur
+    detectServerError() {
+        // Écouter les erreurs de navigation
+        window.addEventListener('error', (event) => {
+            if (event.message.includes('Server Error') || event.message.includes('Runtime Error')) {
+                this.serverErrorDetected = true;
+                this.log('🚨 SERVER_ERROR', 'Erreur serveur détectée', {
+                    error: event.message,
+                    sessionId: this.sessionId
+                });
+                
+                this.showNotification('🚨 Erreur serveur détectée ! Rechargez la page.', 'error');
+            }
+        });
+        
+        // Vérifier le contenu de la page pour des erreurs serveur
+        const observer = new MutationObserver(() => {
+            if (document.body.textContent.includes('Server Error in') || 
+                document.body.textContent.includes('Runtime Error')) {
+                this.serverErrorDetected = true;
+                this.log('🚨 SERVER_ERROR_DOM', 'Erreur serveur dans DOM', {
+                    sessionId: this.sessionId
+                });
+                
+                this.showNotification('🚨 Erreur serveur dans la page ! Rechargez la page.', 'error');
+            }
+        });
+        
+        observer.observe(document.body, { childList: true, subtree: true });
+    }
+
+    // Désactiver l'extension
+    deactivateExtension() {
+        this.extensionActive = false;
+        this.log('🔒 DEACTIVATE', 'Extension désactivée', {
+            sessionId: this.sessionId
+        });
+        
+        // Mettre à jour l'UI
+        this.updateExtensionStateUI();
+        
+        // Sauvegarder l'état dans localStorage
+        localStorage.setItem('rms_extension_active', 'false');
+    }
+    
+    // Réactiver l'extension
+    reactivateExtension() {
+        this.extensionActive = true;
+        this.log('🔓 REACTIVATE', 'Extension réactivée', {
+            sessionId: this.sessionId
+        });
+        
+        // Mettre à jour l'UI
+        this.updateExtensionStateUI();
+        
+        // Sauvegarder l'état dans localStorage
+        localStorage.setItem('rms_extension_active', 'true');
+        
+        this.showNotification('🔓 Extension réactivée ! Vous pouvez maintenant utiliser toutes les fonctionnalités.', 'success');
+    }
+    
+    // Mettre à jour l'interface selon l'état de l'extension
+    updateExtensionStateUI() {
+        if (!this.ui) return;
+        
+        // Trouver les boutons existants
+        const allButtons = this.ui.querySelectorAll('button');
+        const deactivateBtn = document.getElementById('deactivate-extension');
+        const reactivateBtn = document.getElementById('reactivate-extension');
+        
+        if (this.extensionActive) {
+            // Extension active : montrer le bouton désactiver, cacher réactiver
+            if (deactivateBtn) {
+                deactivateBtn.style.display = 'inline-block';
+                deactivateBtn.disabled = false;
+                deactivateBtn.style.opacity = '1';
+            }
+            if (reactivateBtn) {
+                reactivateBtn.style.display = 'none';
+            }
+            
+            // Activer tous les autres boutons (sauf réactiver)
+            allButtons.forEach(btn => {
+                if (btn.id !== 'reactivate-extension') {
+                    btn.disabled = false;
+                    btn.style.opacity = '1';
+                }
+            });
+        } else {
+            // Extension inactive : montrer le bouton réactiver, cacher désactiver
+            if (deactivateBtn) {
+                deactivateBtn.style.display = 'none';
+            }
+            if (reactivateBtn) {
+                reactivateBtn.style.display = 'inline-block';
+                reactivateBtn.disabled = false; // TOUJOURS actif
+                reactivateBtn.style.opacity = '1'; // TOUJOURS visible
+            }
+            
+            // Désactiver tous les autres boutons (sauf réactiver)
+            allButtons.forEach(btn => {
+                if (btn.id !== 'reactivate-extension') {
+                    btn.disabled = true;
+                    btn.style.opacity = '0.5';
+                }
+            });
+        }
     }
 
     // Fonction de force pour modifier les tarifs restants
@@ -2431,6 +2816,12 @@ class RMSHelper {
                     <button id="clear-logs" class="rms-btn" style="margin-left: 10px; background: linear-gradient(135deg, #ef4444, #dc2626); color: white;">
                         🗑️ Vider Logs
                     </button>
+                    <button id="deactivate-extension" class="rms-btn" style="margin-left: 10px; background: linear-gradient(135deg, #f59e0b, #d97706); color: white;">
+                        🔒 Désactiver
+                    </button>
+                    <button id="reactivate-extension" class="rms-btn" style="margin-left: 10px; background: linear-gradient(135deg, #10b981, #059669); color: white; display: none;">
+                        🔓 Réactiver
+                    </button>
                 </div>
                 
                 <div style="margin-bottom: 20px;">
@@ -2453,6 +2844,23 @@ class RMSHelper {
             if (e.target === modal || e.target.id === 'close-settings') {
                 modal.remove();
             }
+            
+            // Boutons de désactivation/réactivation - TOUJOURS actifs
+            if (e.target.id === 'deactivate-extension') {
+                this.deactivateExtension();
+                return;
+            }
+            if (e.target.id === 'reactivate-extension') {
+                this.reactivateExtension();
+                return;
+            }
+            
+            // Autres boutons - seulement si l'extension est active
+            if (!this.extensionActive && e.target.id !== 'reload-data') {
+                this.showNotification('🔒 Extension désactivée ! Cliquez sur "🔓 Réactiver" pour utiliser cette fonction.', 'warning');
+                return;
+            }
+            
             if (e.target.id === 'reload-data') {
                 this.loadStoredData().then(() => {
                     this.loadDefaultData();
@@ -2555,13 +2963,17 @@ class RMSHelper {
                 // Étape 1: Focus sur la cellule pour s'assurer qu'elle est active
                 rateCell.focus();
                 rateCell.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                
+                // Déclencher l'événement focus pour s'assurer qu'Infragistics détecte la cellule
+                rateCell.dispatchEvent(new FocusEvent('focus', { bubbles: true }));
+                rateCell.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
 
-                // Étape 2: Simulation d'un vrai clic utilisateur avec coordonnées
+                // Étape 2: Simulation d'un vrai double-clic utilisateur avec coordonnées
                 const rect = rateCell.getBoundingClientRect();
                 const centerX = rect.left + rect.width / 2;
                 const centerY = rect.top + rect.height / 2;
 
-                // Événements de souris complets pour simuler un vrai clic
+                // Événements de souris complets pour simuler un vrai double-clic
                 const mouseEvents = [
                     new MouseEvent('mousedown', {
                         bubbles: true,
@@ -2586,19 +2998,50 @@ class RMSHelper {
                         clientX: centerX,
                         clientY: centerY,
                         button: 0
+                    }),
+                    new MouseEvent('dblclick', {
+                        bubbles: true,
+                        cancelable: true,
+                        view: window,
+                        clientX: centerX,
+                        clientY: centerY,
+                        button: 0,
+                        detail: 2
                     })
                 ];
 
-                // Déclencher les événements de souris
-                mouseEvents.forEach(event => rateCell.dispatchEvent(event));
+                // Déclencher les événements de souris avec gestion d'erreur pour chaque événement
+                mouseEvents.forEach(event => {
+                    try {
+                        rateCell.dispatchEvent(event);
+                    } catch (e) {
+                        // Ignorer les erreurs Infragistics lors du clic
+                        this.log('⚠️ INFRAGISTICS_ERROR', 'Erreur Infragistics ignorée', {
+                            carType,
+                            error: e.message,
+                            sessionId: this.sessionId
+                        });
+                    }
+                });
 
-                this.log('🖱️ CLICK_SENT', 'Clic utilisateur simulé avec coordonnées', {
+                this.log('🖱️ CLICK_SENT', 'Double-clic utilisateur simulé avec coordonnées', {
                     carType,
                     coordinates: { x: centerX, y: centerY },
                     sessionId: this.sessionId
                 });
 
-                // Étape 3: Attendre qu'Infragistics crée l'INPUT (comme votre action manuelle)
+                // Étape 3: Tenter la touche F2 pour forcer l'édition
+                setTimeout(() => {
+                    rateCell.dispatchEvent(new KeyboardEvent('keydown', {
+                        key: 'F2',
+                        code: 'F2',
+                        keyCode: 113,
+                        which: 113,
+                        bubbles: true
+                    }));
+                }, 100);
+
+                // Étape 4: Attendre qu'Infragistics crée l'INPUT (comme votre action manuelle)
                 let attempts = 0;
                 const maxAttempts = 10;
                 const checkInterval = 100;
@@ -2606,10 +3049,53 @@ class RMSHelper {
                 const checkForInput = () => {
                     attempts++;
                     
-                    // Chercher l'INPUT créé par Infragistics
-                    const input = rateCell.querySelector('input[type="text"]') || 
-                                 rateCell.querySelector('input:not([type])') ||
-                                 rateCell.querySelector('input');
+                    // Chercher l'INPUT créé par Infragistics - plusieurs stratégies
+                    let input = rateCell.querySelector('input[type="text"]') || 
+                               rateCell.querySelector('input:not([type])');
+                    
+                    // Si pas trouvé dans la cellule, chercher dans le document
+                    if (!input) {
+                        // Chercher un input actif dans la grille
+                        const grid = document.getElementById('uwgDisplayGrid');
+                        if (grid) {
+                            input = grid.querySelector('input[type="text"]:focus') ||
+                                   grid.querySelector('input:not([type]):focus') ||
+                                   grid.querySelector('input[style*="display: block"]') ||
+                                   grid.querySelector('input[style*="visibility: visible"]');
+                        }
+                        
+                        // Dernière tentative : chercher n'importe quel input visible dans le document
+                        if (!input) {
+                            const allInputs = document.querySelectorAll('input[type="text"], input:not([type])');
+                            for (let inp of allInputs) {
+                                const rect = inp.getBoundingClientRect();
+                                const style = window.getComputedStyle(inp);
+                                if (rect.width > 0 && rect.height > 0 && 
+                                    style.display !== 'none' && 
+                                    style.visibility !== 'hidden' &&
+                                    inp.offsetParent !== null) {
+                                    // Vérifier si l'input est proche de notre cellule
+                                    const cellRect = rateCell.getBoundingClientRect();
+                                    if (Math.abs(rect.left - cellRect.left) < 50 && 
+                                        Math.abs(rect.top - cellRect.top) < 50) {
+                                        input = inp;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Filtrer les inputs de type checkbox ou autres types non-textuels
+                    if (input && (input.type === 'checkbox' || input.type === 'radio' || input.type === 'button')) {
+                        this.log('⚠️ WRONG_INPUT_TYPE', 'Input trouvé mais type incorrect', {
+                            carType,
+                            inputType: input.type,
+                            attempts,
+                            sessionId: this.sessionId
+                        });
+                        input = null;
+                    }
 
                     if (input) {
                         this.log('✅ INPUT_FOUND', 'INPUT créé par Infragistics trouvé', {
